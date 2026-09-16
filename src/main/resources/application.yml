@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: export-tracking
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/export_tracking
+    username: export_tracking
+    password: export_tracking
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+
+server:
+  port: 8080
