@@ -46,7 +46,7 @@ class PedidoRepositoryTest {
         entityManager.persistAndFlush(novoPedido("INV-0002"));
 
         assertThatExceptionOfType(DataIntegrityViolationException.class)
-                .isThrownBy(() -> entityManager.persistAndFlush(novoPedido("INV-0002")));
+                .isThrownBy(() -> pedidoRepository.saveAndFlush(novoPedido("INV-0002")));
     }
 
     private Pedido novoPedido(String numeroInvoice) {
