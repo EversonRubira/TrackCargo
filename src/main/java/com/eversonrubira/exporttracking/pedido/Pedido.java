@@ -23,14 +23,20 @@ public class Pedido {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "numero_invoice", nullable = false, unique = true, length = 50)
-    private String numeroInvoice;
+    // Chave de negocio: numero do PO, atribuido na abertura da
+    // negociacao - antes de qualquer documento (a invoice, por
+    // exemplo, e gerada depois, e vive so como item do checklist).
+    @Column(name = "numero_pedido", nullable = false, unique = true, length = 50)
+    private String numeroPedido;
 
     @Column(nullable = false, length = 200)
     private String cliente;
 
     @Column(name = "pais_destino", nullable = false, length = 100)
     private String paisDestino;
+
+    @Column(name = "porto_origem", nullable = false, length = 100)
+    private String portoOrigem;
 
     @Column(name = "porto_destino", nullable = false, length = 100)
     private String portoDestino;
@@ -57,6 +63,20 @@ public class Pedido {
     private String moeda;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private Incoterm incoterm;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "forma_pagamento", nullable = false, length = 30)
+    private FormaPagamento formaPagamento;
+
+    // Ex: 30.00 = 30% antecipado / 70% contra embarque. O saldo
+    // (100 - percentualParcial) e calculado, nunca persistido, pra
+    // nao correr risco dos dois ficarem incoerentes entre si.
+    @Column(name = "percentual_parcial", nullable = false, precision = 5, scale = 2)
+    private BigDecimal percentualParcial;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 40)
     private PedidoEstado estado;
 
@@ -76,18 +96,25 @@ public class Pedido {
         // exigido pelo JPA
     }
 
-    public Pedido(String numeroInvoice, String cliente, String paisDestino, String portoDestino,
-                  String produto, BigDecimal quantidade, String unidadeMedida,
-                  BigDecimal precoAcordado, String moeda) {
-        this.numeroInvoice = numeroInvoice;
+    public Pedido(String numeroPedido, String cliente, String paisDestino,
+                  String portoOrigem, String portoDestino, String produto,
+                  BigDecimal quantidade, String unidadeMedida,
+                  BigDecimal precoAcordado, String moeda,
+                  Incoterm incoterm, FormaPagamento formaPagamento,
+                  BigDecimal percentualParcial) {
+        this.numeroPedido = numeroPedido;
         this.cliente = cliente;
         this.paisDestino = paisDestino;
+        this.portoOrigem = portoOrigem;
         this.portoDestino = portoDestino;
         this.produto = produto;
         this.quantidade = quantidade;
         this.unidadeMedida = unidadeMedida;
         this.precoAcordado = precoAcordado;
         this.moeda = (moeda != null) ? moeda : "USD";
+        this.incoterm = incoterm;
+        this.formaPagamento = formaPagamento;
+        this.percentualParcial = percentualParcial;
         this.estado = PedidoEstado.CRIADO;
     }
 
@@ -104,9 +131,10 @@ public class Pedido {
     }
 
     public UUID getId() { return id; }
-    public String getNumeroInvoice() { return numeroInvoice; }
+    public String getNumeroPedido() { return numeroPedido; }
     public String getCliente() { return cliente; }
     public String getPaisDestino() { return paisDestino; }
+    public String getPortoOrigem() { return portoOrigem; }
     public String getPortoDestino() { return portoDestino; }
     public String getProduto() { return produto; }
     public BigDecimal getQuantidade() { return quantidade; }
@@ -117,6 +145,9 @@ public class Pedido {
     public void setNumeroContainer(String numeroContainer) { this.numeroContainer = numeroContainer; }
     public BigDecimal getPrecoAcordado() { return precoAcordado; }
     public String getMoeda() { return moeda; }
+    public Incoterm getIncoterm() { return incoterm; }
+    public FormaPagamento getFormaPagamento() { return formaPagamento; }
+    public BigDecimal getPercentualParcial() { return percentualParcial; }
     public PedidoEstado getEstado() { return estado; }
     public LocalDateTime getPagamentoParcialConfirmadoEm() { return pagamentoParcialConfirmadoEm; }
     public LocalDateTime getPagamentoSaldoConfirmadoEm() { return pagamentoSaldoConfirmadoEm; }
