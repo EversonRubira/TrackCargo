@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: export-tracking-db
+    environment:
+      POSTGRES_DB: export_tracking
+      POSTGRES_USER: export_tracking
+      POSTGRES_PASSWORD: export_tracking
+    ports:
+      - "5432:5432"
+    volumes:
+      - export-tracking-data:/var/lib/postgresql/data
+
+volumes:
+  export-tracking-data:
