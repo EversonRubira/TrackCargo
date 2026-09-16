@@ -1,24 +1,24 @@
 # Status — qa-backend-export-tracking
 
 ## Última atualização
-16/set/2026 — Fase 0 concluída
+16/set/2026 — Fase 1 concluída
 
 ## Onde paramos
-Fase 0 (Scaffold) concluída e validada:
-- Spring Boot 4.1.1, Java 21 (target de compilação), rodando em JDK 25 no Codespace
-- docker-compose.yml com Postgres 16
-- `mvn spring-boot:run` sobe sem erro, conecta no Postgres, Flyway cria
-  `flyway_schema_history` vazio (nenhuma migration ainda — esperado)
-- Branch `feat/fase0-scaffold`
+Fase 1 (Entity + Migration) concluída e validada:
+- V1__create_pedido_schema.sql (pedido, checklist_documento, pedido_transicao)
+- Entidades JPA: Pedido, ChecklistDocumento, PedidoTransicao
+- Enum PedidoEstado com mapa de transições manuais — resolve a pendência
+  da Spec: DOCUMENTACAO_ENVIADA e DOCUMENTACAO_ACEITA não são destino
+  alcançável via transição manual, só pelo checklist (Fase 3)
+- mvn spring-boot:run: Flyway aplica V1, Hibernate valida sem erro
+- Branch feat/fase1-entity-migration (ou a que você usar)
 
 ## Próximo passo
-Fase 1 do PLAN.md: Entity + Migration
-- `V1__create_pedido_schema.sql` (pedido, checklist_documento, pedido_transicao)
-- Entidades JPA + enum `PedidoEstado`
-- Pendência da Spec a resolver na implementação do enum: o mapa de
-  transições manuais não deve incluir `DOCUMENTACAO_ENVIADA` nem
-  `DOCUMENTACAO_ACEITA` como destino alcançável via `/transicionar` —
-  esses dois só devem ser atingidos pelo efeito colateral do checklist
+Fase 2 do PLAN.md: Repository
+- PedidoRepository, ChecklistDocumentoRepository, PedidoTransicaoRepository
+- Query customizada: buscar pedido por numero_invoice
+- Confirmação: teste @DataJpaTest cobrindo o find por invoice e a
+  constraint de unicidade
 
 ## Decisões de stack confirmadas
 - Spring Boot 4.1.x (não 3.x — linha 3.x é EOL desde 30/jun/2026)
