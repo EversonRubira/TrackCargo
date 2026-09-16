@@ -4,5 +4,6 @@ public enum TipoDocumento {
     INVOICE,
     PACKING_LIST,
     BL,
-    CERTIFICADO_SANITARIO
+    CERTIFICADO_SANITARIO,
+    DOCUMENTO_ADICIONAL
 }

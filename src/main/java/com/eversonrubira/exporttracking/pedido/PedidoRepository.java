@@ -7,5 +7,5 @@ import java.util.UUID;
 
 public interface PedidoRepository extends JpaRepository<Pedido, UUID> {
 
-    Optional<Pedido> findByNumeroInvoice(String numeroInvoice);
+    Optional<Pedido> findByNumeroPedido(String numeroPedido);
 }

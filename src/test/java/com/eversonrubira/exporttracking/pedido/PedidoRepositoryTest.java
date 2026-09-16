@@ -24,42 +24,46 @@ class PedidoRepositoryTest {
     private TestEntityManager entityManager;
 
     @Test
-    void deveEncontrarPedidoPeloNumeroDaInvoice() {
-        Pedido pedido = novoPedido("INV-0001");
+    void deveEncontrarPedidoPeloNumeroDoPedido() {
+        Pedido pedido = novoPedido("PO-0001");
         entityManager.persistAndFlush(pedido);
 
-        Optional<Pedido> encontrado = pedidoRepository.findByNumeroInvoice("INV-0001");
+        Optional<Pedido> encontrado = pedidoRepository.findByNumeroPedido("PO-0001");
 
         assertThat(encontrado).isPresent();
         assertThat(encontrado.get().getCliente()).isEqualTo(pedido.getCliente());
     }
 
     @Test
-    void naoDeveEncontrarPedidoParaInvoiceInexistente() {
-        Optional<Pedido> encontrado = pedidoRepository.findByNumeroInvoice("INV-INEXISTENTE");
+    void naoDeveEncontrarPedidoParaNumeroInexistente() {
+        Optional<Pedido> encontrado = pedidoRepository.findByNumeroPedido("PO-INEXISTENTE");
 
         assertThat(encontrado).isEmpty();
     }
 
     @Test
-    void naoDevePermitirDoisPedidosComMesmoNumeroDeInvoice() {
-        entityManager.persistAndFlush(novoPedido("INV-0002"));
+    void naoDevePermitirDoisPedidosComMesmoNumero() {
+        entityManager.persistAndFlush(novoPedido("PO-0002"));
 
         assertThatExceptionOfType(DataIntegrityViolationException.class)
-                .isThrownBy(() -> pedidoRepository.saveAndFlush(novoPedido("INV-0002")));
+                .isThrownBy(() -> pedidoRepository.saveAndFlush(novoPedido("PO-0002")));
     }
 
-    private Pedido novoPedido(String numeroInvoice) {
+    private Pedido novoPedido(String numeroPedido) {
         return new Pedido(
-                numeroInvoice,
+                numeroPedido,
                 "Cliente Teste",
                 "Argentina",
+                "Porto de Santos",
                 "Buenos Aires",
                 "Soja",
                 new BigDecimal("1000.00"),
                 "TON",
                 new BigDecimal("50000.00"),
-                "USD"
+                "USD",
+                Incoterm.CFR,
+                FormaPagamento.TT_ANTECIPADO,
+                new BigDecimal("30.00")
         );
     }
 }

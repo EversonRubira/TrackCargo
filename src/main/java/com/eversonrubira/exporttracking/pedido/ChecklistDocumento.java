@@ -33,6 +33,11 @@ public class ChecklistDocumento {
     @Column(name = "tipo_documento", nullable = false, length = 40)
     private TipoDocumento tipoDocumento;
 
+    // Usado so quando tipoDocumento = DOCUMENTO_ADICIONAL, pra dizer
+    // o que e (varia por pais). Nulo pros 4 tipos fixos.
+    @Column(length = 200)
+    private String descricao;
+
     @Column(name = "enviado_em")
     private LocalDateTime enviadoEm;
 
@@ -43,13 +48,19 @@ public class ChecklistDocumento {
     }
 
     public ChecklistDocumento(Pedido pedido, TipoDocumento tipoDocumento) {
+        this(pedido, tipoDocumento, null);
+    }
+
+    public ChecklistDocumento(Pedido pedido, TipoDocumento tipoDocumento, String descricao) {
         this.pedido = pedido;
         this.tipoDocumento = tipoDocumento;
+        this.descricao = descricao;
     }
 
     public UUID getId() { return id; }
     public Pedido getPedido() { return pedido; }
     public TipoDocumento getTipoDocumento() { return tipoDocumento; }
+    public String getDescricao() { return descricao; }
     public LocalDateTime getEnviadoEm() { return enviadoEm; }
     public LocalDateTime getAceitoEm() { return aceitoEm; }
 }
