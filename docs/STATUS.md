@@ -1,24 +1,33 @@
 # Status — qa-backend-export-tracking
 
 ## Última atualização
-16/set/2026 — Fase 1 concluída
+16/set/2026 — Fase 2 concluída
 
 ## Onde paramos
-Fase 1 (Entity + Migration) concluída e validada:
-- V1__create_pedido_schema.sql (pedido, checklist_documento, pedido_transicao)
-- Entidades JPA: Pedido, ChecklistDocumento, PedidoTransicao
-- Enum PedidoEstado com mapa de transições manuais — resolve a pendência
-  da Spec: DOCUMENTACAO_ENVIADA e DOCUMENTACAO_ACEITA não são destino
-  alcançável via transição manual, só pelo checklist (Fase 3)
-- mvn spring-boot:run: Flyway aplica V1, Hibernate valida sem erro
+Fase 2 (Repository) concluída e validada:
+- PedidoRepository, ChecklistDocumentoRepository, PedidoTransicaoRepository
+  (Spring Data JPA)
+- Query customizada: PedidoRepository.findByNumeroInvoice
+- PedidoRepositoryTest (@DataJpaTest + @AutoConfigureTestDatabase(Replace.NONE),
+  roda contra o Postgres do docker-compose): cobre o find por invoice e a
+  constraint de unicidade (uk_pedido_numero_invoice)
+- Nota de stack: Spring Boot 4.1.x modularizou as anotações de teste por
+  tecnologia. DataJpaTest e AutoConfigureTestDatabase vêm de módulos
+  separados (spring-boot-data-jpa-test / spring-boot-jdbc-test), puxados
+  pela dependência spring-boot-starter-data-jpa-test — sem ela o build
+  falha com "package does not exist" mesmo com os imports corretos
 - Branch feat/fase1-entity-migration (ou a que você usar)
 
 ## Próximo passo
-Fase 2 do PLAN.md: Repository
-- PedidoRepository, ChecklistDocumentoRepository, PedidoTransicaoRepository
-- Query customizada: buscar pedido por numero_invoice
-- Confirmação: teste @DataJpaTest cobrindo o find por invoice e a
-  constraint de unicidade
+Fase 3 do PLAN.md: Service + regras de domínio
+- PedidoService: criar pedido (+ checklist zerado + transição inicial),
+  transicionar estado (validando + gravando histórico)
+- ChecklistService: marcar enviado/aceito, disparar transição automática
+  quando aplicável
+- Exceções de domínio: TransicaoInvalidaException,
+  PedidoNaoEncontradoException, DocumentacaoIncompletaException
+- Confirmação: suíte de testes unitários cobrindo a tabela de correlação
+  da Spec (linhas "Unitário")
 
 ## Decisões de stack confirmadas
 - Spring Boot 4.1.x (não 3.x — linha 3.x é EOL desde 30/jun/2026)
