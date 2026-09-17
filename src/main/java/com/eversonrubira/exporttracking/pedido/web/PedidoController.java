@@ -1,0 +1,55 @@
+package com.eversonrubira.exporttracking.pedido.web;
+
+import com.eversonrubira.exporttracking.pedido.ChecklistDocumento;
+import com.eversonrubira.exporttracking.pedido.Pedido;
+import com.eversonrubira.exporttracking.pedido.PedidoService;
+import com.eversonrubira.exporttracking.pedido.web.dto.CriarPedidoRequest;
+import com.eversonrubira.exporttracking.pedido.web.dto.PedidoResponse;
+import com.eversonrubira.exporttracking.pedido.web.dto.TransicionarRequest;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/pedidos")
+public class PedidoController {
+
+    private final PedidoService pedidoService;
+
+    public PedidoController(PedidoService pedidoService) {
+        this.pedidoService = pedidoService;
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public PedidoResponse criar(@Valid @RequestBody CriarPedidoRequest request) {
+        Pedido pedido = pedidoService.criar(request.paraPedido());
+        return responder(pedido);
+    }
+
+    @GetMapping("/{numeroPedido}")
+    public PedidoResponse buscar(@PathVariable String numeroPedido) {
+        return responder(pedidoService.buscarPorNumero(numeroPedido));
+    }
+
+    @PatchMapping("/{numeroPedido}/transicionar")
+    public PedidoResponse transicionar(@PathVariable String numeroPedido,
+                                        @Valid @RequestBody TransicionarRequest request) {
+        Pedido pedido = pedidoService.transicionar(numeroPedido, request.novoEstado());
+        return responder(pedido);
+    }
+
+    private PedidoResponse responder(Pedido pedido) {
+        List<ChecklistDocumento> checklist = pedidoService.buscarChecklist(pedido.getNumeroPedido());
+        return PedidoResponse.de(pedido, checklist);
+    }
+}

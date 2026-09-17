@@ -76,4 +76,9 @@ public class PedidoService {
         return pedidoRepository.findByNumeroPedido(numeroPedido)
                 .orElseThrow(() -> new PedidoNaoEncontradoException(numeroPedido));
     }
+
+    public List<ChecklistDocumento> buscarChecklist(String numeroPedido) {
+        Pedido pedido = buscarPorNumero(numeroPedido);
+        return checklistRepository.findByPedidoId(pedido.getId());
+    }
 }
