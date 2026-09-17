@@ -1,5 +1,6 @@
 package com.eversonrubira.exporttracking.pedido;
 
+import com.eversonrubira.exporttracking.pedido.exception.ChecklistDocumentoNaoEncontradoException;
 import com.eversonrubira.exporttracking.pedido.exception.DocumentoJaAceitoException;
 import com.eversonrubira.exporttracking.pedido.exception.DocumentoNaoAceitoException;
 import com.eversonrubira.exporttracking.pedido.exception.DocumentoNaoEnviadoException;
@@ -66,6 +67,30 @@ public class ChecklistService {
         if (pedido.getEstado() == PedidoEstado.DOCUMENTACAO_ACEITA) {
             transicionarDireto(pedido, PedidoEstado.DOCUMENTACAO_ENVIADA);
         }
+    }
+
+    // Sobrecargas usadas pelo Controller - resolvem o documento a partir do
+    // numero do pedido + tipo (sem precisar do PedidoRepository aqui, ja
+    // que a busca navega "pedido.numeroPedido" pela propria associacao)
+    // e delegam pro metodo que ja recebe a entidade carregada.
+    @Transactional
+    public void enviar(String numeroPedido, TipoDocumento tipo) {
+        enviar(buscarDocumento(numeroPedido, tipo));
+    }
+
+    @Transactional
+    public void aceitar(String numeroPedido, TipoDocumento tipo) {
+        aceitar(buscarDocumento(numeroPedido, tipo));
+    }
+
+    @Transactional
+    public void reabrirAposAceite(String numeroPedido, TipoDocumento tipo, String motivo) {
+        reabrirAposAceite(buscarDocumento(numeroPedido, tipo), motivo);
+    }
+
+    private ChecklistDocumento buscarDocumento(String numeroPedido, TipoDocumento tipo) {
+        return checklistRepository.findByPedido_NumeroPedidoAndTipoDocumento(numeroPedido, tipo)
+                .orElseThrow(() -> new ChecklistDocumentoNaoEncontradoException(numeroPedido, tipo));
     }
 
     private void transicionarDireto(Pedido pedido, PedidoEstado novoEstado) {
