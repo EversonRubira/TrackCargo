@@ -1,9 +1,66 @@
 # Status — qa-backend-export-tracking
 
 ## Última atualização
-17/set/2026 — Fase 3 (Service) concluída
+17/set/2026 — Revisão da Fase 3 (PR #7) antes do merge
 
 ## Onde paramos
+Revisão de código da Fase 3 (`feat/fase3-service-consignee-ocorrencia`,
+PR #7) concluída. Suíte atual roda 8/8 verde, mas a cobertura real é
+mais estreita do que "8/8" sugere — ver lacunas abaixo antes de tratar
+a fase como fechada.
+
+**Confirmado correto na revisão:**
+- Aceite de documento é definitivo (`enviar()`/`aceitar()` rejeitam
+  documento com `aceito_em` preenchido; só `reabrirAposAceite()` muda).
+- `reabrirAposAceite()` só reverte `pedido.estado` pra
+  `DOCUMENTACAO_ENVIADA` enquanto o pedido está em
+  `DOCUMENTACAO_ACEITA` — depois de `EMBARCADO` só grava a ocorrência.
+  Coberto por `ChecklistServiceTest.reabrirAposEmbarqueNaoReverteEstadoDoPedido`.
+- `DOCUMENTACAO_ENVIADA`/`DOCUMENTACAO_ACEITA` seguem inalcançáveis via
+  `/transicionar` manual — `TRANSICOES_MANUAIS` os exclui de todo
+  conjunto de destino, e `ChecklistService` nunca passa por
+  `podeTransicionarManualmentePara()` pra aplicá-los.
+- Não há mais nenhum padrão `findAll()` + filtro em memória em
+  `src/main` (o único caso, em `ChecklistService.aceitar()`, já tinha
+  sido corrigido pra `findByPedidoId`).
+
+**2 bugs encontrados, não corrigidos ainda (aguardando decisão antes
+do merge):**
+1. `reabrirAposAceite()` não valida que o documento estava de fato
+   aceito — chamado com `aceito_em == null`, não lança exceção e ainda
+   grava uma `PedidoOcorrencia`. Falta um guard equivalente ao
+   `DocumentoNaoEnviadoException` de `aceitar()`.
+2. `PedidoService.adicionarDocumentoAdicional()` esbarra na constraint
+   `UNIQUE(pedido_id, tipo_documento)` (V1, não revisada na V3): só
+   aceita um documento adicional por pedido — segunda chamada estoura
+   `DataIntegrityViolationException`. Método recebe `descricao` por
+   chamada, o que sugere que múltiplos documentos extras eram a
+   intenção; schema atual não suporta isso.
+
+**Lacuna de teste (não é bug, mas fecha errado a Fase 3 se ignorada):**
+`PedidoServiceTest` não existe — `criar()`, `transicionar()` (incluindo
+o caminho de `TransicaoInvalidaException`) e `alterarConsignee()` estão
+sem teste unitário direto. `PedidoEstadoTest` também não existe. Os
+8/8 verdes cobrem só `ChecklistService` (Mockito) e `PedidoRepository`
+(Postgres via `@DataJpaTest`) — não `PedidoService`. PLAN.md é
+explícito que Fase 3 é onde a cobertura de JUnit é prioridade; esse
+critério ainda não fecha.
+
+`docs/SPEC.md` foi atualizada nesta revisão: campo `consignee`,
+tabela `pedido_ocorrencia`, as 3 regras de negócio da Fase 3 e a
+tabela de correlação critério×teste corrigida pra refletir as lacunas
+acima (estava citando `PedidoServiceTest`/`PedidoEstadoTest` como se
+já existissem).
+
+## Estado de saída desta revisão
+Fase 3 **não fechada** — histórico de commits anterior (8959983,
+17ec8aa) descreve como concluída; a revisão contesta essa conclusão
+até os dois bugs serem resolvidos e `PedidoServiceTest` existir. Não
+avançar pra Fase 4 (Controller) até isso ser decidido.
+
+---
+
+## Histórico — antes da revisão (texto original da Fase 3)
 Fase 3 (Service + regras de domínio) concluída e testada (8/8):
 
 - PedidoService: criar() (gera checklist inicial + transição CRIADO),
@@ -37,7 +94,15 @@ Fase 3 (Service + regras de domínio) concluída e testada (8/8):
   PedidoRepositoryTest contra Postgres real (3/3 + 8/8 no total)
 
 ## Próximo passo
-Fase 4 do PLAN.md: Controller + DTOs
+Antes de fechar a Fase 3 e avançar (bloqueado até decisão):
+1. Decidir e corrigir os 2 bugs listados em "Estado de saída desta
+   revisão" (guard em `reabrirAposAceite()`; cardinalidade de
+   `adicionarDocumentoAdicional()`).
+2. Escrever `PedidoServiceTest` cobrindo `criar()`, `transicionar()`
+   (caminho de `TransicaoInvalidaException` incluído) e
+   `alterarConsignee()`.
+
+Só depois disso, Fase 4 do PLAN.md: Controller + DTOs
 - PedidoController: POST /pedidos, GET /pedidos/{numero},
   PATCH /pedidos/{numero}/transicionar
 - ChecklistController (ou endpoints dentro do PedidoController):
