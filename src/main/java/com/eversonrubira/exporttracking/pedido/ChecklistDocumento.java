@@ -33,8 +33,6 @@ public class ChecklistDocumento {
     @Column(name = "tipo_documento", nullable = false, length = 40)
     private TipoDocumento tipoDocumento;
 
-    // Usado so quando tipoDocumento = DOCUMENTO_ADICIONAL, pra dizer
-    // o que e (varia por pais). Nulo pros 4 tipos fixos.
     @Column(length = 200)
     private String descricao;
 
@@ -43,6 +41,12 @@ public class ChecklistDocumento {
 
     @Column(name = "aceito_em")
     private LocalDateTime aceitoEm;
+
+    @Column(name = "reaberto_em")
+    private LocalDateTime reabertoEm;
+
+    @Column(name = "motivo_reabertura", length = 500)
+    private String motivoReabertura;
 
     protected ChecklistDocumento() {
     }
@@ -57,10 +61,27 @@ public class ChecklistDocumento {
         this.descricao = descricao;
     }
 
+    // Pacote-privado - so ChecklistService muda o ciclo de vida do documento.
+    void marcarEnviado() {
+        this.enviadoEm = LocalDateTime.now();
+    }
+
+    void marcarAceito() {
+        this.aceitoEm = LocalDateTime.now();
+    }
+
+    void reabrir(String motivo) {
+        this.reabertoEm = LocalDateTime.now();
+        this.motivoReabertura = motivo;
+        this.aceitoEm = null;
+    }
+
     public UUID getId() { return id; }
     public Pedido getPedido() { return pedido; }
     public TipoDocumento getTipoDocumento() { return tipoDocumento; }
     public String getDescricao() { return descricao; }
     public LocalDateTime getEnviadoEm() { return enviadoEm; }
     public LocalDateTime getAceitoEm() { return aceitoEm; }
+    public LocalDateTime getReabertoEm() { return reabertoEm; }
+    public String getMotivoReabertura() { return motivoReabertura; }
 }

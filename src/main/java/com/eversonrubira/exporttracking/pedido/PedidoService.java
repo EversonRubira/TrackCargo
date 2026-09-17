@@ -1,0 +1,75 @@
+package com.eversonrubira.exporttracking.pedido;
+
+import com.eversonrubira.exporttracking.pedido.exception.PedidoNaoEncontradoException;
+import com.eversonrubira.exporttracking.pedido.exception.TransicaoInvalidaException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+@Service
+public class PedidoService {
+
+    private static final List<TipoDocumento> CHECKLIST_INICIAL = List.of(
+            TipoDocumento.INVOICE,
+            TipoDocumento.PACKING_LIST,
+            TipoDocumento.BL,
+            TipoDocumento.CERTIFICADO_SANITARIO
+    );
+
+    private final PedidoRepository pedidoRepository;
+    private final ChecklistDocumentoRepository checklistRepository;
+    private final PedidoTransicaoRepository transicaoRepository;
+    private final PedidoOcorrenciaRepository ocorrenciaRepository;
+
+    public PedidoService(PedidoRepository pedidoRepository,
+                          ChecklistDocumentoRepository checklistRepository,
+                          PedidoTransicaoRepository transicaoRepository,
+                          PedidoOcorrenciaRepository ocorrenciaRepository) {
+        this.pedidoRepository = pedidoRepository;
+        this.checklistRepository = checklistRepository;
+        this.transicaoRepository = transicaoRepository;
+        this.ocorrenciaRepository = ocorrenciaRepository;
+    }
+
+    @Transactional
+    public Pedido criar(Pedido pedido) {
+        Pedido salvo = pedidoRepository.save(pedido);
+        for (TipoDocumento tipo : CHECKLIST_INICIAL) {
+            checklistRepository.save(new ChecklistDocumento(salvo, tipo));
+        }
+        transicaoRepository.save(new PedidoTransicao(salvo, null, PedidoEstado.CRIADO));
+        return salvo;
+    }
+
+    @Transactional
+    public void adicionarDocumentoAdicional(String numeroPedido, String descricao) {
+        Pedido pedido = buscarPorNumero(numeroPedido);
+        checklistRepository.save(new ChecklistDocumento(pedido, TipoDocumento.DOCUMENTO_ADICIONAL, descricao));
+    }
+
+    @Transactional
+    public Pedido transicionar(String numeroPedido, PedidoEstado novoEstado) {
+        Pedido pedido = buscarPorNumero(numeroPedido);
+        if (!pedido.getEstado().podeTransicionarManualmentePara(novoEstado)) {
+            throw new TransicaoInvalidaException(pedido.getEstado(), novoEstado);
+        }
+        PedidoEstado anterior = pedido.getEstado();
+        pedido.aplicarTransicao(novoEstado);
+        transicaoRepository.save(new PedidoTransicao(pedido, anterior, novoEstado));
+        return pedido;
+    }
+
+    @Transactional
+    public Pedido alterarConsignee(String numeroPedido, String novoConsignee, String motivo) {
+        Pedido pedido = buscarPorNumero(numeroPedido);
+        pedido.aplicarConsignee(novoConsignee);
+        ocorrenciaRepository.save(new PedidoOcorrencia(pedido, TipoOcorrencia.ALTERACAO_DADOS_PEDIDO, motivo));
+        return pedido;
+    }
+
+    public Pedido buscarPorNumero(String numeroPedido) {
+        return pedidoRepository.findByNumeroPedido(numeroPedido)
+                .orElseThrow(() -> new PedidoNaoEncontradoException(numeroPedido));
+    }
+}
