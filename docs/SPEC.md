@@ -201,10 +201,15 @@ Implementados na Fase 4 (`PedidoController` + `ChecklistController`):
 | PATCH | `/pedidos/{numeroPedido}/documentos/{tipo}/enviar` | Marca `enviado_em`. Se pedido está em `CRIADO`, transiciona automaticamente para `DOCUMENTACAO_ENVIADA` |
 | PATCH | `/pedidos/{numeroPedido}/documentos/{tipo}/aceitar` | Marca `aceito_em` (exige `enviado_em` preenchido, senão 409). Se todos os itens obrigatórios ficarem com `aceito_em` preenchido, transiciona automaticamente para `DOCUMENTACAO_ACEITA` |
 | PATCH | `/pedidos/{numeroPedido}/documentos/{tipo}/reabrir` | Body `{ "motivo": "..." }`. Exige documento aceito (senão 409); reverte pra `DOCUMENTACAO_ENVIADA` só se o pedido ainda não tiver embarcado; grava `pedido_ocorrencia` sempre |
+| POST | `/pedidos/{numeroPedido}/pagamento-parcial` | Exige `podeTransicionarManualmentePara(PAGAMENTO_PARCIAL_RECEBIDO)` (mesma trava de `/transicionar`, hoje só a partir de `DOCUMENTACAO_ACEITA`), senão 409. Marca `pagamento_parcial_confirmado_em`, transiciona e grava `pedido_transicao` |
+| POST | `/pedidos/{numeroPedido}/pagamento-saldo` | Exige `podeTransicionarManualmentePara(PAGAMENTO_SALDO_RECEBIDO)` (hoje só a partir de `EMBARCADO`), senão 409. Marca `pagamento_saldo_confirmado_em`, transiciona e grava `pedido_transicao` |
+| GET | `/pedidos/{numeroPedido}/historico` | Lista `pedido_transicao` do pedido ordenada por `ocorrido_em` ascendente (`PedidoTransicaoResponse[]`) |
 
 `enviar`/`aceitar`/`reabrir` devolvem `204 No Content` — não há corpo de
 resposta definido pra eles ainda (cliente pode consultar `GET
 /pedidos/{numero}` de novo se precisar do estado atualizado).
+`pagamento-parcial`/`pagamento-saldo` devolvem `200` com o `PedidoResponse`
+atualizado, igual `/transicionar`.
 
 **Decisão de design:** `ChecklistController` ficou separado de
 `PedidoController` (em vez de um único controller com todas as rotas)
@@ -214,12 +219,11 @@ aninhadas sob `/pedidos/{numeroPedido}/documentos/{tipo}` por
 estrutura de URL (sub-recurso REST), o que não obriga as duas
 entidades a viverem no mesmo controller.
 
-**Ainda não implementados** (não fizeram parte do escopo de nenhuma
-fase até agora, incluindo a Fase 4): `GET
-/pedidos/{numero}/historico`, `POST .../pagamento-parcial`, `POST
-.../pagamento-saldo`. Não existe método em `PedidoService` pra
-pagamento parcial/saldo nem consulta de histórico de transições —
-ficam como lacuna registrada, não uma omissão da Fase 4.
+`confirmarPagamentoParcial()`/`confirmarPagamentoSaldo()` reusam a
+mesma trava de validação de `transicionar()`
+(`podeTransicionarManualmentePara()`) através de um método privado
+compartilhado em `PedidoService` — não duplicam a checagem nem
+contornam o mapa de transições do enum.
 
 Toda resposta de erro segue corpo padrão:
 ```json
@@ -261,6 +265,7 @@ desde a criação do pedido).
 | `adicionarDocumentoAdicional()` rejeita segundo documento pro mesmo pedido | Unitário | `PedidoServiceTest.naoPermiteSegundoDocumentoAdicionalParaOMesmoPedido` |
 | Toda transição gera registro de histórico correto | Unitário | `PedidoServiceTest.criarGeraChecklistZeradoETransicaoInicial` + `transicionarComEstadoValidoAtualizaPedidoEGravaHistorico` |
 | `alterarConsignee()` grava `PedidoOcorrencia` | Unitário | `PedidoServiceTest.alterarConsigneeAtualizaPedidoEGeraOcorrencia` |
+| `confirmarPagamentoParcial()`/`confirmarPagamentoSaldo()` marcam data, transicionam e reusam a validação de `transicionar()` | Unitário | `PedidoServiceTest.confirmarPagamentoParcialMarcaDataETransicionaEstado` + `confirmarPagamentoParcialForaDeSequenciaLancaExcecao` + `confirmarPagamentoSaldoMarcaDataETransicionaEstado` + `confirmarPagamentoSaldoSemEstarEmbarcadoLancaExcecao` |
 | Unicidade de `numero_pedido` | Repositório | `PedidoRepositoryTest.naoDevePermitirDoisPedidosComMesmoNumero` |
 | POST /pedidos cria e retorna 201 com checklist | API | `PedidoControllerTest.criarRetorna201ComPedidoCriado` |
 | Request de criação inválido retorna 400 | API | `PedidoControllerTest.criarComCamposObrigatoriosFaltandoRetorna400` |
@@ -271,6 +276,8 @@ desde a criação do pedido).
 | Enviar/aceitar documento retorna 204; erro de domínio retorna 409 | API | `ChecklistControllerTest.enviarRetorna204` + `enviarDocumentoJaAceitoRetorna409` + `aceitarRetorna204` + `aceitarDocumentoNaoEnviadoRetorna409` |
 | Reabrir documento aceito retorna 204; sem aceite prévio retorna 409; sem motivo retorna 400 | API | `ChecklistControllerTest.reabrirRetorna204` + `reabrirDocumentoNaoAceitoRetorna409` + `reabrirSemMotivoRetorna400` |
 | Documento inexistente (tipo sem registro de checklist) retorna 404; `{tipo}` inválido na rota retorna 400 | API | `ChecklistControllerTest.enviarDocumentoInexistenteRetorna404` + `tipoDocumentoInvalidoNaRotaRetorna400` |
+| Pagamento parcial/saldo fora de sequência retorna 409; válido retorna 200 | API | `PedidoControllerTest.confirmarPagamentoParcialRetorna200` + `confirmarPagamentoParcialForaDeSequenciaRetorna409` + `confirmarPagamentoSaldoRetorna200` + `confirmarPagamentoSaldoSemEstarEmbarcadoRetorna409` |
+| Histórico vazio retorna lista vazia; com transições retorna ordenado; pedido inexistente retorna 404 | API | `PedidoControllerTest.historicoVazioRetorna200ComListaVazia` + `historicoComTransicoesRetornaListaOrdenada` + `historicoDePedidoInexistenteRetorna404` |
 | Fluxo completo criado→entregue | E2E | Fora de escopo ainda — Fase 5 |
 | Fluxo com cancelamento antes do embarque | E2E | Fora de escopo ainda — Fase 5 |
 
