@@ -55,13 +55,33 @@ public class PedidoService {
     @Transactional
     public Pedido transicionar(String numeroPedido, PedidoEstado novoEstado) {
         Pedido pedido = buscarPorNumero(numeroPedido);
+        transicionarValidando(pedido, novoEstado);
+        return pedido;
+    }
+
+    @Transactional
+    public Pedido confirmarPagamentoParcial(String numeroPedido) {
+        Pedido pedido = buscarPorNumero(numeroPedido);
+        transicionarValidando(pedido, PedidoEstado.PAGAMENTO_PARCIAL_RECEBIDO);
+        pedido.confirmarPagamentoParcial();
+        return pedido;
+    }
+
+    @Transactional
+    public Pedido confirmarPagamentoSaldo(String numeroPedido) {
+        Pedido pedido = buscarPorNumero(numeroPedido);
+        transicionarValidando(pedido, PedidoEstado.PAGAMENTO_SALDO_RECEBIDO);
+        pedido.confirmarPagamentoSaldo();
+        return pedido;
+    }
+
+    private void transicionarValidando(Pedido pedido, PedidoEstado novoEstado) {
         if (!pedido.getEstado().podeTransicionarManualmentePara(novoEstado)) {
             throw new TransicaoInvalidaException(pedido.getEstado(), novoEstado);
         }
         PedidoEstado anterior = pedido.getEstado();
         pedido.aplicarTransicao(novoEstado);
         transicaoRepository.save(new PedidoTransicao(pedido, anterior, novoEstado));
-        return pedido;
     }
 
     @Transactional
@@ -80,5 +100,10 @@ public class PedidoService {
     public List<ChecklistDocumento> buscarChecklist(String numeroPedido) {
         Pedido pedido = buscarPorNumero(numeroPedido);
         return checklistRepository.findByPedidoId(pedido.getId());
+    }
+
+    public List<PedidoTransicao> buscarHistorico(String numeroPedido) {
+        Pedido pedido = buscarPorNumero(numeroPedido);
+        return transicaoRepository.findByPedidoIdOrderByOcorridoEmAsc(pedido.getId());
     }
 }

@@ -177,6 +177,14 @@ public class Pedido {
         this.consignee = novoConsignee;
     }
 
+    void confirmarPagamentoParcial() {
+        this.pagamentoParcialConfirmadoEm = LocalDateTime.now();
+    }
+
+    void confirmarPagamentoSaldo() {
+        this.pagamentoSaldoConfirmadoEm = LocalDateTime.now();
+    }
+
     public UUID getId() { return id; }
     public String getNumeroPedido() { return numeroPedido; }
     public String getCliente() { return cliente; }
