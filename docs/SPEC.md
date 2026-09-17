@@ -76,16 +76,15 @@ obrigatórios são criados automaticamente (zerados) no momento da
 criação do pedido — não existe pedido sem seu checklist completo
 desde o início.
 
-> **Limitação conhecida (V3):** a mesma constraint `UNIQUE(pedido_id,
+> **Cardinalidade confirmada:** a mesma constraint `UNIQUE(pedido_id,
 > tipo_documento)` se aplica a `DOCUMENTO_ADICIONAL`, então
-> `PedidoService.adicionarDocumentoAdicional()` só aceita **um**
-> documento adicional por pedido — uma segunda chamada para o mesmo
-> pedido estoura `DataIntegrityViolationException`. Se a necessidade
-> real for múltiplos documentos extras por pedido, isso exige revisar
-> a constraint (ex: unique parcial excluindo `DOCUMENTO_ADICIONAL`, ou
-> unicidade em `(pedido_id, tipo_documento, descricao)`). Não corrigido
-> nesta revisão — aguardando decisão de produto sobre a cardinalidade
-> real antes de mudar schema.
+> `PedidoService.adicionarDocumentoAdicional()` aceita só **um**
+> documento adicional por pedido — decisão de domínio confirmada pelo
+> dono do negócio, não uma limitação a corrigir. A constraint da V1
+> foi mantida como está; uma segunda chamada para o mesmo pedido
+> lança `DocumentoAdicionalJaExisteException` (checagem explícita
+> antes do save, não mais `DataIntegrityViolationException` vazando
+> do banco).
 
 ### `pedido_ocorrencia` (V3)
 
@@ -162,12 +161,10 @@ original — registradas aqui para não ficarem só no código:
   muda o estado diretamente (sem passar por esse método) — ver
   `TRANSICOES_MANUAIS` em `PedidoEstado`.
 
-**Gap aberto:** `reabrirAposAceite()` hoje não valida que o
-documento estava de fato aceito (`aceito_em != null`) antes de
-reabrir — chamado sobre um documento não aceito, ele não lança
-exceção e ainda assim grava uma ocorrência. Falta uma
-`DocumentoNaoAceitoException` espelhando a `DocumentoNaoEnviadoException`
-de `aceitar()`.
+`reabrirAposAceite()` valida que o documento estava de fato aceito
+(`aceito_em != null`) antes de reabrir — chamado sobre um documento
+não aceito, lança `DocumentoNaoAceitoException` (mesmo padrão de
+`DocumentoNaoEnviadoException` de `aceitar()`).
 
 ## Endpoints
 
@@ -191,13 +188,15 @@ Toda resposta de erro segue corpo padrão:
 
 | Critério (do PRD) | Tipo de teste | O que valida |
 |---|---|---|
-| Pedido nasce em `CRIADO` com checklist zerado | Unitário | **Lacuna** — `PedidoServiceTest` não existe ainda; `criar()` está sem teste |
+| Pedido nasce em `CRIADO` com checklist zerado | Unitário | `PedidoServiceTest.criarGeraChecklistZeradoETransicaoInicial` |
 | Cancelamento proibido a partir de `EMBARCADO` | Unitário | **Lacuna** — `PedidoEstadoTest` não existe; não há teste direto de `TRANSICOES_MANUAIS` |
-| Transição fora de sequência é rejeitada explicitamente | Unitário + API | **Lacuna (unitário)** — `PedidoService.transicionar()` lançando `TransicaoInvalidaException` não é testado. API ainda não implementada (Fase 4) |
+| Transição fora de sequência é rejeitada explicitamente | Unitário + API | `PedidoServiceTest.transicionarComEstadoInvalidoLancaExcecaoENaoGravaHistorico`. API ainda não implementada (Fase 4) |
 | Avanço para `DOCUMENTACAO_ACEITA` exige todos os docs aceitos | Unitário | `ChecklistServiceTest.aceitarTodosOsItensDisparaDocumentacaoAceita` |
 | Aceite de documento é definitivo (não muda por `enviar()`/`aceitar()` de novo) | Unitário | `ChecklistServiceTest.naoPermiteAceitarDocumentoNaoEnviado` cobre o caso de não-enviado; falta caso explícito de "aceitar de novo o que já foi aceito" |
-| `reabrirAposAceite()` reverte estado só antes do embarque | Unitário | `ChecklistServiceTest.reabrirAntesDoEmbarqueReverteEstadoDoPedido` + `reabrirAposEmbarqueNaoReverteEstadoDoPedido` |
-| Toda transição gera registro de histórico correto | Unitário | **Lacuna** — `PedidoServiceTest` ausente; verificação de `estado_anterior`/`estado_novo` só existe implicitamente via mocks do `ChecklistServiceTest` |
+| `reabrirAposAceite()` reverte estado só antes do embarque; exige documento aceito | Unitário | `ChecklistServiceTest.reabrirAntesDoEmbarqueReverteEstadoDoPedido` + `reabrirAposEmbarqueNaoReverteEstadoDoPedido` + `naoPermiteReabrirDocumentoQueNuncaFoiAceito` |
+| `adicionarDocumentoAdicional()` rejeita segundo documento pro mesmo pedido | Unitário | `PedidoServiceTest.naoPermiteSegundoDocumentoAdicionalParaOMesmoPedido` |
+| Toda transição gera registro de histórico correto | Unitário | `PedidoServiceTest.criarGeraChecklistZeradoETransicaoInicial` + `transicionarComEstadoValidoAtualizaPedidoEGravaHistorico` |
+| `alterarConsignee()` grava `PedidoOcorrencia` | Unitário | `PedidoServiceTest.alterarConsigneeAtualizaPedidoEGeraOcorrencia` |
 | Unicidade de `numero_pedido` | Repositório | `PedidoRepositoryTest.naoDevePermitirDoisPedidosComMesmoNumero` |
 | Consulta por número de pedido retorna estado atual | API | Fora de escopo ainda — Fase 4 |
 | Fluxo completo criado→entregue | E2E | Fora de escopo ainda — Fase 5 |

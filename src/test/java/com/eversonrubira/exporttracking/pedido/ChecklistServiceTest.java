@@ -121,4 +121,12 @@ class ChecklistServiceTest {
         assertThatExceptionOfType(com.eversonrubira.exporttracking.pedido.exception.DocumentoNaoEnviadoException.class)
                 .isThrownBy(() -> checklistService.aceitar(invoice));
     }
+
+    @Test
+    void naoPermiteReabrirDocumentoQueNuncaFoiAceito() {
+        checklistService.enviar(invoice);
+
+        assertThatExceptionOfType(com.eversonrubira.exporttracking.pedido.exception.DocumentoNaoAceitoException.class)
+                .isThrownBy(() -> checklistService.reabrirAposAceite(invoice, "Tentativa invalida"));
+    }
 }

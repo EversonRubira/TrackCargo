@@ -8,4 +8,6 @@ import java.util.UUID;
 public interface ChecklistDocumentoRepository extends JpaRepository<ChecklistDocumento, UUID> {
 
     List<ChecklistDocumento> findByPedidoId(UUID pedidoId);
+
+    boolean existsByPedidoIdAndTipoDocumento(UUID pedidoId, TipoDocumento tipoDocumento);
 }

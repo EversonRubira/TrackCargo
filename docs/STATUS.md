@@ -1,15 +1,17 @@
 # Status — qa-backend-export-tracking
 
 ## Última atualização
-17/set/2026 — Revisão da Fase 3 (PR #7) antes do merge
+17/set/2026 — Correções pós-revisão da Fase 3 aplicadas (branch
+`fix/fase3-guard-documento-adicional`, a partir da main já com o
+PR #7 mergeado)
 
 ## Onde paramos
-Revisão de código da Fase 3 (`feat/fase3-service-consignee-ocorrencia`,
-PR #7) concluída. Suíte atual roda 8/8 verde, mas a cobertura real é
-mais estreita do que "8/8" sugere — ver lacunas abaixo antes de tratar
-a fase como fechada.
+Revisão de código da Fase 3 (PR #7, mergeado) identificou 2 bugs e
+1 lacuna de teste. PR #7 já estava fechado quando a correção começou,
+então os ajustes foram feitos em branch nova a partir da main
+atualizada, não reabrindo a branch antiga.
 
-**Confirmado correto na revisão:**
+**Confirmado correto na revisão (sem mudança):**
 - Aceite de documento é definitivo (`enviar()`/`aceitar()` rejeitam
   documento com `aceito_em` preenchido; só `reabrirAposAceite()` muda).
 - `reabrirAposAceite()` só reverte `pedido.estado` pra
@@ -21,42 +23,59 @@ a fase como fechada.
   conjunto de destino, e `ChecklistService` nunca passa por
   `podeTransicionarManualmentePara()` pra aplicá-los.
 - Não há mais nenhum padrão `findAll()` + filtro em memória em
-  `src/main` (o único caso, em `ChecklistService.aceitar()`, já tinha
-  sido corrigido pra `findByPedidoId`).
+  `src/main`.
 
-**2 bugs encontrados, não corrigidos ainda (aguardando decisão antes
-do merge):**
-1. `reabrirAposAceite()` não valida que o documento estava de fato
-   aceito — chamado com `aceito_em == null`, não lança exceção e ainda
-   grava uma `PedidoOcorrencia`. Falta um guard equivalente ao
-   `DocumentoNaoEnviadoException` de `aceitar()`.
-2. `PedidoService.adicionarDocumentoAdicional()` esbarra na constraint
-   `UNIQUE(pedido_id, tipo_documento)` (V1, não revisada na V3): só
-   aceita um documento adicional por pedido — segunda chamada estoura
-   `DataIntegrityViolationException`. Método recebe `descricao` por
-   chamada, o que sugere que múltiplos documentos extras eram a
-   intenção; schema atual não suporta isso.
+**2 bugs corrigidos nesta branch:**
+1. `reabrirAposAceite()` agora lança `DocumentoNaoAceitoException`
+   (mesmo padrão de `DocumentoNaoEnviadoException`) se chamado com
+   `aceito_em == null` — antes passava direto sem validar, gravando
+   uma `PedidoOcorrencia` sem sentido. Coberto por
+   `ChecklistServiceTest.naoPermiteReabrirDocumentoQueNuncaFoiAceito`.
+2. `PedidoService.adicionarDocumentoAdicional()` agora checa
+   `ChecklistDocumentoRepository.existsByPedidoIdAndTipoDocumento()`
+   antes do save e lança `DocumentoAdicionalJaExisteException` em vez
+   de deixar vazar `DataIntegrityViolationException` do Postgres.
+   Cardinalidade confirmada pelo dono do domínio: um documento
+   adicional por pedido, constraint da V1 mantida como está — só o
+   comportamento de erro mudou, de exceção genérica de banco pra
+   exceção de domínio explícita. Coberto por
+   `PedidoServiceTest.naoPermiteSegundoDocumentoAdicionalParaOMesmoPedido`.
 
-**Lacuna de teste (não é bug, mas fecha errado a Fase 3 se ignorada):**
-`PedidoServiceTest` não existe — `criar()`, `transicionar()` (incluindo
-o caminho de `TransicaoInvalidaException`) e `alterarConsignee()` estão
-sem teste unitário direto. `PedidoEstadoTest` também não existe. Os
-8/8 verdes cobrem só `ChecklistService` (Mockito) e `PedidoRepository`
-(Postgres via `@DataJpaTest`) — não `PedidoService`. PLAN.md é
-explícito que Fase 3 é onde a cobertura de JUnit é prioridade; esse
-critério ainda não fecha.
+**Lacuna de teste fechada:** `PedidoServiceTest` criado (Mockito, sem
+banco, mesmo padrão do `ChecklistServiceTest`) cobrindo `criar()`
+(checklist zerado + transição inicial no histórico), `transicionar()`
+(caminho válido e `TransicaoInvalidaException` no inválido) e
+`alterarConsignee()` (gera `PedidoOcorrencia` correta). Não criado
+`PedidoEstadoTest` — fica registrado como lacuna remanescente, fora do
+escopo pedido para esta correção.
 
-`docs/SPEC.md` foi atualizada nesta revisão: campo `consignee`,
-tabela `pedido_ocorrencia`, as 3 regras de negócio da Fase 3 e a
-tabela de correlação critério×teste corrigida pra refletir as lacunas
-acima (estava citando `PedidoServiceTest`/`PedidoEstadoTest` como se
-já existissem).
+`docs/SPEC.md` mantém as atualizações da revisão anterior (campo
+`consignee`, tabela `pedido_ocorrencia`, as 3 regras de negócio, tabela
+de correlação corrigida) — atualizar novamente se quiser refletir que
+os 2 bugs já foram corrigidos.
+
+## Resultado da suíte completa (mvn test)
+14/14 verde:
+- `ChecklistServiceTest`: 6/6 (5 originais + o novo caso de reabertura
+  sem aceite)
+- `PedidoServiceTest`: 5/5 (novo)
+- `PedidoRepositoryTest`: 3/3, contra Postgres 16 real com Flyway
+  aplicando as 3 migrations (V1, V2, V3)
+
+Nota de ambiente: o `docker-compose.yml` do repo não pôde ser usado
+nesta sessão — pull de `postgres:16` bloqueado pela política de rede
+do sandbox (403 no blob do registry). Rodei contra um Postgres 16
+nativo já instalado na máquina, com as mesmas credenciais que o
+`application.yml` espera (`export_tracking`/`export_tracking`,
+porta 5432) — schema e comportamento idênticos ao que o
+docker-compose proveria; só o transporte (container vs. instalação
+nativa) foi diferente.
 
 ## Estado de saída desta revisão
-Fase 3 **não fechada** — histórico de commits anterior (8959983,
-17ec8aa) descreve como concluída; a revisão contesta essa conclusão
-até os dois bugs serem resolvidos e `PedidoServiceTest` existir. Não
-avançar pra Fase 4 (Controller) até isso ser decidido.
+Fase 3 fechada: os 2 bugs identificados foram corrigidos, a lacuna de
+`PedidoServiceTest` foi preenchida, e a suíte completa passa (14/14)
+contra Postgres real. Aguardando sua confirmação para abrir o PR e,
+depois, para avançar à Fase 4 (Controller) — não avanço sem isso.
 
 ---
 
