@@ -13,6 +13,7 @@ import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -23,14 +24,16 @@ public class Pedido {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    // Chave de negocio: numero do PO, atribuido na abertura da
-    // negociacao - antes de qualquer documento (a invoice, por
-    // exemplo, e gerada depois, e vive so como item do checklist).
     @Column(name = "numero_pedido", nullable = false, unique = true, length = 50)
     private String numeroPedido;
 
     @Column(nullable = false, length = 200)
     private String cliente;
+
+    // Destinatario da carga no BL - pode ser diferente do cliente
+    // (comprador). Ja visto mudar depois do embarque na pratica.
+    @Column(nullable = false, length = 200)
+    private String consignee;
 
     @Column(name = "pais_destino", nullable = false, length = 100)
     private String paisDestino;
@@ -70,9 +73,6 @@ public class Pedido {
     @Column(name = "forma_pagamento", nullable = false, length = 30)
     private FormaPagamento formaPagamento;
 
-    // Ex: 30.00 = 30% antecipado / 70% contra embarque. O saldo
-    // (100 - percentualParcial) e calculado, nunca persistido, pra
-    // nao correr risco dos dois ficarem incoerentes entre si.
     @Column(name = "percentual_parcial", nullable = false, precision = 5, scale = 2)
     private BigDecimal percentualParcial;
 
@@ -96,26 +96,62 @@ public class Pedido {
         // exigido pelo JPA
     }
 
-    public Pedido(String numeroPedido, String cliente, String paisDestino,
-                  String portoOrigem, String portoDestino, String produto,
-                  BigDecimal quantidade, String unidadeMedida,
-                  BigDecimal precoAcordado, String moeda,
-                  Incoterm incoterm, FormaPagamento formaPagamento,
-                  BigDecimal percentualParcial) {
-        this.numeroPedido = numeroPedido;
-        this.cliente = cliente;
-        this.paisDestino = paisDestino;
-        this.portoOrigem = portoOrigem;
-        this.portoDestino = portoDestino;
-        this.produto = produto;
-        this.quantidade = quantidade;
-        this.unidadeMedida = unidadeMedida;
-        this.precoAcordado = precoAcordado;
-        this.moeda = (moeda != null) ? moeda : "USD";
-        this.incoterm = incoterm;
-        this.formaPagamento = formaPagamento;
-        this.percentualParcial = percentualParcial;
+    private Pedido(Builder b) {
+        this.numeroPedido = Objects.requireNonNull(b.numeroPedido, "numeroPedido e obrigatorio");
+        this.cliente = Objects.requireNonNull(b.cliente, "cliente e obrigatorio");
+        this.consignee = Objects.requireNonNull(b.consignee, "consignee e obrigatorio");
+        this.paisDestino = Objects.requireNonNull(b.paisDestino, "paisDestino e obrigatorio");
+        this.portoOrigem = Objects.requireNonNull(b.portoOrigem, "portoOrigem e obrigatorio");
+        this.portoDestino = Objects.requireNonNull(b.portoDestino, "portoDestino e obrigatorio");
+        this.produto = Objects.requireNonNull(b.produto, "produto e obrigatorio");
+        this.quantidade = Objects.requireNonNull(b.quantidade, "quantidade e obrigatoria");
+        this.unidadeMedida = Objects.requireNonNull(b.unidadeMedida, "unidadeMedida e obrigatoria");
+        this.precoAcordado = Objects.requireNonNull(b.precoAcordado, "precoAcordado e obrigatorio");
+        this.moeda = (b.moeda != null) ? b.moeda : "USD";
+        this.incoterm = Objects.requireNonNull(b.incoterm, "incoterm e obrigatorio");
+        this.formaPagamento = Objects.requireNonNull(b.formaPagamento, "formaPagamento e obrigatorio");
+        this.percentualParcial = Objects.requireNonNull(b.percentualParcial, "percentualParcial e obrigatorio");
         this.estado = PedidoEstado.CRIADO;
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private String numeroPedido;
+        private String cliente;
+        private String consignee;
+        private String paisDestino;
+        private String portoOrigem;
+        private String portoDestino;
+        private String produto;
+        private BigDecimal quantidade;
+        private String unidadeMedida;
+        private BigDecimal precoAcordado;
+        private String moeda;
+        private Incoterm incoterm;
+        private FormaPagamento formaPagamento;
+        private BigDecimal percentualParcial;
+
+        public Builder numeroPedido(String v) { this.numeroPedido = v; return this; }
+        public Builder cliente(String v) { this.cliente = v; return this; }
+        public Builder consignee(String v) { this.consignee = v; return this; }
+        public Builder paisDestino(String v) { this.paisDestino = v; return this; }
+        public Builder portoOrigem(String v) { this.portoOrigem = v; return this; }
+        public Builder portoDestino(String v) { this.portoDestino = v; return this; }
+        public Builder produto(String v) { this.produto = v; return this; }
+        public Builder quantidade(BigDecimal v) { this.quantidade = v; return this; }
+        public Builder unidadeMedida(String v) { this.unidadeMedida = v; return this; }
+        public Builder precoAcordado(BigDecimal v) { this.precoAcordado = v; return this; }
+        public Builder moeda(String v) { this.moeda = v; return this; }
+        public Builder incoterm(Incoterm v) { this.incoterm = v; return this; }
+        public Builder formaPagamento(FormaPagamento v) { this.formaPagamento = v; return this; }
+        public Builder percentualParcial(BigDecimal v) { this.percentualParcial = v; return this; }
+
+        public Pedido build() {
+            return new Pedido(this);
+        }
     }
 
     @PrePersist
@@ -130,9 +166,21 @@ public class Pedido {
         this.atualizadoEm = LocalDateTime.now();
     }
 
+    // Pacote-privado de proposito: so PedidoService/ChecklistService
+    // (mesmo pacote) podem mudar estado ou consignee - mutacao e regra
+    // de negocio, nunca um setter publico solto.
+    void aplicarTransicao(PedidoEstado novoEstado) {
+        this.estado = novoEstado;
+    }
+
+    void aplicarConsignee(String novoConsignee) {
+        this.consignee = novoConsignee;
+    }
+
     public UUID getId() { return id; }
     public String getNumeroPedido() { return numeroPedido; }
     public String getCliente() { return cliente; }
+    public String getConsignee() { return consignee; }
     public String getPaisDestino() { return paisDestino; }
     public String getPortoOrigem() { return portoOrigem; }
     public String getPortoDestino() { return portoDestino; }

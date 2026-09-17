@@ -1,56 +1,55 @@
 # Status — qa-backend-export-tracking
 
 ## Última atualização
-16/set/2026 — Correção de schema pós-Fase 2 (V2)
+17/set/2026 — Fase 3 (Service) concluída
 
 ## Onde paramos
-Fase 2 (Repository) concluída na Fase anterior. Hoje entrou uma correção
-de modelo que reflete o fluxo real de negócio, descoberta ao detalhar
-a Fase 3:
+Fase 3 (Service + regras de domínio) concluída e testada (8/8):
 
-- O sistema começa pelo PO (Pedido/Purchase Order), não pela invoice —
-  a invoice é gerada a partir dos dados do PO e é só um item do
-  checklist documental. Migration V2 renomeia numero_invoice para
-  numero_pedido (chave de negócio desde a criação).
-- Campos de PO que faltavam no schema: porto_origem (texto livre —
-  não faz diferença comercial, quem fixa o preço é o fornecedor
-  independente do porto), incoterm (enum com os 11 termos do
-  Incoterms 2020 — padrão internacional fechado, mesmo hoje só
-  usando CFR/FOB), forma_pagamento (enum: CARTA_CREDITO,
-  TT_ANTECIPADO, TT_CONTRA_DOCUMENTOS, COBRANCA_DOCUMENTARIA) e
-  percentual_parcial (decimal — o saldo é 100 - percentual_parcial,
-  calculado, nunca persistido).
-- TipoDocumento ganhou DOCUMENTO_ADICIONAL (documento extra que
-  alguns países exigem) — ChecklistDocumento ganhou campo descricao
-  opcional pra esse caso. A checagem de "documentação aceita" deixa
-  de contar "4 tipos fixos" e passa a ser "todos os itens do
-  checklist deste pedido", já preparada pro item opcional.
-- Regra de negócio confirmada pro reenvio de documento: aceite é
-  definitivo e por documento — uma vez que aceito_em é preenchido,
-  aquele documento trava, sem volta. reenviar só é válido enquanto
-  aceito_em ainda for nulo. Isso elimina qualquer necessidade de
-  reverter pedido.estado — DOCUMENTACAO_ACEITA, uma vez alcançado,
-  nunca desfaz.
-- PedidoRepositoryTest atualizado e validado (3/3) contra o schema V2.
+- PedidoService: criar() (gera checklist inicial + transição CRIADO),
+  transicionar() consumindo podeTransicionarManualmentePara() do enum
+  pela primeira vez, adicionarDocumentoAdicional(),
+  alterarConsignee() (gera PedidoOcorrencia)
+- ChecklistService: enviar() (bloqueado se já aceito), aceitar()
+  (exige enviado, dispara DOCUMENTACAO_ENVIADA no 1º envio e
+  DOCUMENTACAO_ACEITA quando todo o checklist do pedido está aceito),
+  reabrirAposAceite() — exceção deliberada com motivo obrigatório
+- Regra de negócio nova, vinda de caso real relatado: consignee
+  (destinatário no BL) é campo próprio, separado de cliente
+  (comprador) — podem ser partes diferentes e o consignee pode mudar
+  depois do embarque (caso real: desistência do comprador original
+  do negócio com seu consignee). Notify Party do BL não entrou —
+  sem fricção real observada ainda.
+- pedido_ocorrencia: tabela genérica (tipo + descrição obrigatória +
+  quando) cobrindo tanto reabertura de documento quanto alteração de
+  dados pós-embarque — evita campo disperso por cenário
+- Regra de reversão de estado: reabrirAposAceite() só reverte
+  pedido.estado pra DOCUMENTACAO_ENVIADA se o pedido ainda estiver em
+  DOCUMENTACAO_ACEITA (antes do embarque). Depois de EMBARCADO, só
+  registra a ocorrência — não há como "desfazer" um navio que já saiu
+- Pedido ganhou Builder (construtor tinha chegado a 14 parâmetros
+  com consignee) — estado e consignee só mudam via métodos
+  pacote-privado (aplicarTransicao, aplicarConsignee), nunca setter
+  público
+- ChecklistDocumentoRepository ganhou findByPedidoId — evita table
+  scan que o findAll() + filter em memória fazia antes
+- Testes unitários com Mockito (ChecklistServiceTest, sem banco) +
+  PedidoRepositoryTest contra Postgres real (3/3 + 8/8 no total)
 
 ## Próximo passo
-Fase 3 do PLAN.md: Service + regras de domínio
-- PedidoService: criar pedido (+ checklist zerado com os itens fixos,
-  + transição inicial), transicionar() usando
-  podeTransicionarManualmentePara() do enum (primeiro consumidor
-  real desse método)
-- ChecklistService: enviar (só se aceito_em nulo), aceitar (exige
-  enviado_em, imutável depois de setado), dispara DOCUMENTACAO_ENVIADA
-  no 1º envio e DOCUMENTACAO_ACEITA quando todos os itens do
-  checklist estão aceitos — direto, sem passar por
-  podeTransicionarManualmentePara()
-- Exceções de domínio: TransicaoInvalidaException,
-  PedidoNaoEncontradoException, DocumentoJaAceitoException
-- Ponto em aberto: construtor de Pedido já tem 13 parâmetros —
-  avaliar builder/record de request quando PedidoService.criarPedido()
-  chamar de verdade, não antes
-- Confirmação: testes unitários cobrindo a tabela de correlação da
-  Spec (linhas "Unitário")
+Fase 4 do PLAN.md: Controller + DTOs
+- PedidoController: POST /pedidos, GET /pedidos/{numero},
+  PATCH /pedidos/{numero}/transicionar
+- ChecklistController (ou endpoints dentro do PedidoController):
+  enviar/aceitar documento, reabrirAposAceite
+- DTOs de request/response (não expor entidade JPA direto na API)
+- Exception handler (@ControllerAdvice) mapeando as exceções de
+  domínio pros status HTTP certos (404, 409)
+- Atenção: Boot 4.1 já mudou pacote de teste 2x (Flyway, DataJpaTest)
+  — verificar se @WebMvcTest também mudou de artefato/pacote antes
+  de escrever o teste, não depois do erro de compilação
+- Confirmação: testes cobrindo a tabela de correlação da Spec
+  (linhas "API")
 
 ## Decisões de stack confirmadas
 - Spring Boot 4.1.x (não 3.x — linha 3.x é EOL desde 30/jun/2026)

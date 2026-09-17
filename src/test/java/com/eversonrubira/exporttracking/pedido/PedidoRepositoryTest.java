@@ -50,20 +50,21 @@ class PedidoRepositoryTest {
     }
 
     private Pedido novoPedido(String numeroPedido) {
-        return new Pedido(
-                numeroPedido,
-                "Cliente Teste",
-                "Argentina",
-                "Porto de Santos",
-                "Buenos Aires",
-                "Soja",
-                new BigDecimal("1000.00"),
-                "TON",
-                new BigDecimal("50000.00"),
-                "USD",
-                Incoterm.CFR,
-                FormaPagamento.TT_ANTECIPADO,
-                new BigDecimal("30.00")
-        );
+        return Pedido.builder()
+                .numeroPedido(numeroPedido)
+                .cliente("Cliente Teste")
+                .consignee("Consignee Teste")
+                .paisDestino("Argentina")
+                .portoOrigem("Porto de Santos")
+                .portoDestino("Buenos Aires")
+                .produto("Soja")
+                .quantidade(new BigDecimal("1000.00"))
+                .unidadeMedida("TON")
+                .precoAcordado(new BigDecimal("50000.00"))
+                .moeda("USD")
+                .incoterm(Incoterm.CFR)
+                .formaPagamento(FormaPagamento.TT_ANTECIPADO)
+                .percentualParcial(new BigDecimal("30.00"))
+                .build();
     }
 }
