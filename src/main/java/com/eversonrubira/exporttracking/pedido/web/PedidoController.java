@@ -5,6 +5,7 @@ import com.eversonrubira.exporttracking.pedido.Pedido;
 import com.eversonrubira.exporttracking.pedido.PedidoService;
 import com.eversonrubira.exporttracking.pedido.web.dto.CriarPedidoRequest;
 import com.eversonrubira.exporttracking.pedido.web.dto.PedidoResponse;
+import com.eversonrubira.exporttracking.pedido.web.dto.PedidoTransicaoResponse;
 import com.eversonrubira.exporttracking.pedido.web.dto.TransicionarRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -46,6 +47,25 @@ public class PedidoController {
                                         @Valid @RequestBody TransicionarRequest request) {
         Pedido pedido = pedidoService.transicionar(numeroPedido, request.novoEstado());
         return responder(pedido);
+    }
+
+    @PostMapping("/{numeroPedido}/pagamento-parcial")
+    public PedidoResponse confirmarPagamentoParcial(@PathVariable String numeroPedido) {
+        Pedido pedido = pedidoService.confirmarPagamentoParcial(numeroPedido);
+        return responder(pedido);
+    }
+
+    @PostMapping("/{numeroPedido}/pagamento-saldo")
+    public PedidoResponse confirmarPagamentoSaldo(@PathVariable String numeroPedido) {
+        Pedido pedido = pedidoService.confirmarPagamentoSaldo(numeroPedido);
+        return responder(pedido);
+    }
+
+    @GetMapping("/{numeroPedido}/historico")
+    public List<PedidoTransicaoResponse> historico(@PathVariable String numeroPedido) {
+        return pedidoService.buscarHistorico(numeroPedido).stream()
+                .map(PedidoTransicaoResponse::de)
+                .toList();
     }
 
     private PedidoResponse responder(Pedido pedido) {

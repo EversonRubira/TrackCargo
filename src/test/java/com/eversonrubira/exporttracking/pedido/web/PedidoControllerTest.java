@@ -6,6 +6,7 @@ import com.eversonrubira.exporttracking.pedido.Incoterm;
 import com.eversonrubira.exporttracking.pedido.Pedido;
 import com.eversonrubira.exporttracking.pedido.PedidoEstado;
 import com.eversonrubira.exporttracking.pedido.PedidoService;
+import com.eversonrubira.exporttracking.pedido.PedidoTransicao;
 import com.eversonrubira.exporttracking.pedido.TipoDocumento;
 import com.eversonrubira.exporttracking.pedido.exception.PedidoNaoEncontradoException;
 import com.eversonrubira.exporttracking.pedido.exception.TransicaoInvalidaException;
@@ -170,5 +171,84 @@ class PedidoControllerTest {
                         .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+    }
+
+    @Test
+    void confirmarPagamentoParcialRetorna200() throws Exception {
+        when(pedidoService.confirmarPagamentoParcial("PO-0001")).thenReturn(pedido);
+        when(pedidoService.buscarChecklist("PO-0001")).thenReturn(List.of());
+
+        mockMvc.perform(post("/pedidos/PO-0001/pagamento-parcial"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.numeroPedido").value("PO-0001"));
+    }
+
+    @Test
+    void confirmarPagamentoParcialForaDeSequenciaRetorna409() throws Exception {
+        when(pedidoService.confirmarPagamentoParcial("PO-0001"))
+                .thenThrow(new TransicaoInvalidaException(PedidoEstado.CRIADO, PedidoEstado.PAGAMENTO_PARCIAL_RECEBIDO));
+
+        mockMvc.perform(post("/pedidos/PO-0001/pagamento-parcial"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.erro").value("TRANSICAO_INVALIDA"));
+    }
+
+    @Test
+    void confirmarPagamentoSaldoRetorna200() throws Exception {
+        when(pedidoService.confirmarPagamentoSaldo("PO-0001")).thenReturn(pedido);
+        when(pedidoService.buscarChecklist("PO-0001")).thenReturn(List.of());
+
+        mockMvc.perform(post("/pedidos/PO-0001/pagamento-saldo"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.numeroPedido").value("PO-0001"));
+    }
+
+    @Test
+    void confirmarPagamentoSaldoSemEstarEmbarcadoRetorna409() throws Exception {
+        when(pedidoService.confirmarPagamentoSaldo("PO-0001"))
+                .thenThrow(new TransicaoInvalidaException(PedidoEstado.PAGAMENTO_PARCIAL_RECEBIDO, PedidoEstado.PAGAMENTO_SALDO_RECEBIDO));
+
+        mockMvc.perform(post("/pedidos/PO-0001/pagamento-saldo"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.erro").value("TRANSICAO_INVALIDA"));
+    }
+
+    @Test
+    void historicoVazioRetorna200ComListaVazia() throws Exception {
+        when(pedidoService.buscarHistorico("PO-0001")).thenReturn(List.of());
+
+        mockMvc.perform(get("/pedidos/PO-0001/historico"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    void historicoComTransicoesRetornaListaOrdenada() throws Exception {
+        // PedidoTransicao so guarda o par de estados que recebeu no
+        // construtor - nao depende do estado atual de `pedido`, entao nao
+        // precisa (nem pode, aplicarTransicao e pacote-privado) mudar o
+        // estado do Pedido de fixture aqui.
+        PedidoTransicao criacao = new PedidoTransicao(pedido, null, PedidoEstado.CRIADO);
+        PedidoTransicao envio = new PedidoTransicao(pedido, PedidoEstado.CRIADO, PedidoEstado.DOCUMENTACAO_ENVIADA);
+        when(pedidoService.buscarHistorico("PO-0001")).thenReturn(List.of(criacao, envio));
+
+        mockMvc.perform(get("/pedidos/PO-0001/historico"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].estadoAnterior").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$[0].estadoNovo").value("CRIADO"))
+                .andExpect(jsonPath("$[1].estadoAnterior").value("CRIADO"))
+                .andExpect(jsonPath("$[1].estadoNovo").value("DOCUMENTACAO_ENVIADA"));
+    }
+
+    @Test
+    void historicoDePedidoInexistenteRetorna404() throws Exception {
+        when(pedidoService.buscarHistorico("PO-9999"))
+                .thenThrow(new PedidoNaoEncontradoException("PO-9999"));
+
+        mockMvc.perform(get("/pedidos/PO-9999/historico"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.erro").value("PEDIDO_NAO_ENCONTRADO"));
     }
 }

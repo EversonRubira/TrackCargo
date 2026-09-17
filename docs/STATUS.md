@@ -1,8 +1,65 @@
 # Status — qa-backend-export-tracking
 
 ## Última atualização
-17/set/2026 — Fase 4 (Controller + DTOs) implementada, branch
-`feat/fase4-controller-dtos`
+17/set/2026 — Lacuna da Fase 3/4 fechada: pagamento-parcial,
+pagamento-saldo e histórico (branch
+`feat/fase4-endpoints-pagamento-historico`, a partir de
+`feat/fase4-controller-dtos` — **PR #9 ainda não estava mergeado**
+quando esta branch foi criada, então ela parte do código do PR #9,
+não da main; reconferir a base quando #9 mergear)
+
+## Onde paramos (endpoints de pagamento + histórico)
+
+Fechada a lacuna registrada no PR #9: `PedidoService` ganhou
+`confirmarPagamentoParcial(numeroPedido)` e
+`confirmarPagamentoSaldo(numeroPedido)`, reusando a mesma validação de
+`transicionar()` (`podeTransicionarManualmentePara()`, extraída pra um
+método privado `transicionarValidando()` compartilhado pelos três) —
+nenhuma trava nova, mesmo mapa de transições do enum. `Pedido` ganhou
+`confirmarPagamentoParcial()`/`confirmarPagamentoSaldo()`
+pacote-privados (mesmo padrão de `aplicarTransicao`/`aplicarConsignee`
+— nunca setter público) pra marcar
+`pagamentoParcialConfirmadoEm`/`pagamentoSaldoConfirmadoEm`.
+
+`PedidoTransicaoRepository` ganhou
+`findByPedidoIdOrderByOcorridoEmAsc()`; `PedidoService.buscarHistorico()`
+delega pra ela. Endpoints novos em `PedidoController`: `POST
+/pedidos/{numero}/pagamento-parcial`, `POST
+/pedidos/{numero}/pagamento-saldo` (200 com `PedidoResponse`
+atualizado) e `GET /pedidos/{numero}/historico` (200 com
+`PedidoTransicaoResponse[]`, DTO novo — não expõe `PedidoTransicao`
+direto). `docs/SPEC.md` atualizada: tabela de endpoints e tabela de
+correlação critério×teste.
+
+**Testes novos:**
+- `PedidoServiceTest` (+5): `confirmarPagamentoParcialMarcaDataETransicionaEstado`,
+  `confirmarPagamentoParcialForaDeSequenciaLancaExcecao`,
+  `confirmarPagamentoSaldoMarcaDataETransicionaEstado`,
+  `confirmarPagamentoSaldoSemEstarEmbarcadoLancaExcecao`,
+  `buscarHistoricoDelegaParaORepositorioOrdenado`.
+- `PedidoControllerTest` (+7): caminho válido e 409 pros dois
+  endpoints de pagamento, e histórico vazio/com transições/pedido
+  inexistente (404) pro endpoint de leitura.
+
+Nenhuma mudança de pacote/artefato de teste nova nesta rodada (Jackson
+3, `@WebMvcTest`/`MockitoBean` já mapeados no PR #9) — só reaproveitei
+o que já estava configurado.
+
+## Estado de saída (endpoints de pagamento + histórico)
+Fechado: os 3 endpoints implementados, `docs/SPEC.md` atualizada,
+suíte completa 42/42 em duas rodadas (uma com o Postgres recriado do
+zero — `docker compose` continua bloqueado pela política de rede do
+sandbox, confirmado de novo). PR aberto, aguardando review/merge do
+PR #9 primeiro (esta branch depende dele) e depois deste. Não avanço
+pra Fase 5 sem confirmação.
+
+**Atenção pro merge:** como esta branch partiu de
+`feat/fase4-controller-dtos` (PR #9) em vez da `main`, o PR desta
+branch provavelmente vai pedir merge do #9 primeiro, ou vai precisar
+de rebase depois que o #9 mergear — confira o diff do PR antes de
+aprovar pra não ver o conteúdo do #9 duplicado nele.
+
+---
 
 ## Onde paramos (Fase 4 — Controller + DTOs)
 
