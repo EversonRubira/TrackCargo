@@ -1,5 +1,6 @@
 package com.eversonrubira.exporttracking.pedido;
 
+import com.eversonrubira.exporttracking.pedido.exception.DocumentoAdicionalJaExisteException;
 import com.eversonrubira.exporttracking.pedido.exception.PedidoNaoEncontradoException;
 import com.eversonrubira.exporttracking.pedido.exception.TransicaoInvalidaException;
 import org.springframework.stereotype.Service;
@@ -45,6 +46,9 @@ public class PedidoService {
     @Transactional
     public void adicionarDocumentoAdicional(String numeroPedido, String descricao) {
         Pedido pedido = buscarPorNumero(numeroPedido);
+        if (checklistRepository.existsByPedidoIdAndTipoDocumento(pedido.getId(), TipoDocumento.DOCUMENTO_ADICIONAL)) {
+            throw new DocumentoAdicionalJaExisteException(numeroPedido);
+        }
         checklistRepository.save(new ChecklistDocumento(pedido, TipoDocumento.DOCUMENTO_ADICIONAL, descricao));
     }
 

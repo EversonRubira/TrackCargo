@@ -1,6 +1,7 @@
 package com.eversonrubira.exporttracking.pedido;
 
 import com.eversonrubira.exporttracking.pedido.exception.DocumentoJaAceitoException;
+import com.eversonrubira.exporttracking.pedido.exception.DocumentoNaoAceitoException;
 import com.eversonrubira.exporttracking.pedido.exception.DocumentoNaoEnviadoException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,6 +55,9 @@ public class ChecklistService {
 
     @Transactional
     public void reabrirAposAceite(ChecklistDocumento documento, String motivo) {
+        if (documento.getAceitoEm() == null) {
+            throw new DocumentoNaoAceitoException(documento.getTipoDocumento());
+        }
         documento.reabrir(motivo);
 
         Pedido pedido = documento.getPedido();
