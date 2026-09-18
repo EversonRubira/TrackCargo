@@ -1,8 +1,19 @@
 # Status — TrackCargo
 
 ## Última atualização
-18/set/2026 — Scaffold do frontend F02 (Vite + React + TypeScript +
-Tailwind v4 + React Router), branch `feat/f02-frontend-scaffold`
+18/set/2026 — Ajuste de CORS pra permitir teste via GitHub Codespaces,
+branch `fix/cors-codespaces`
+
+## Ajuste de CORS pra Codespaces
+
+`WebConfig` trocou `allowedOrigins("http://localhost:5173")` por
+`allowedOriginPatterns("http://localhost:5173",
+"https://*.app.github.dev")` — Codespaces expõe a porta do Vite numa
+URL pública que muda a cada sessão
+(`https://<nome-aleatorio>-5173.app.github.dev`), e
+`allowedOrigins` não aceita wildcard (só `allowedOriginPatterns`
+resolve isso). `localhost:5173` continua liberado pra dev local fora
+de Codespace.
 
 ## Onde paramos (scaffold do frontend F02)
 
