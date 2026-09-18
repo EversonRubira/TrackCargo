@@ -1,13 +1,32 @@
-# Spec técnica — F01: Ciclo de vida do pedido de exportação
+# Spec técnica — F01 (ciclo de vida do pedido), F02 (painel do fornecedor), F03 (PDF de status)
 
-> Entrada: `docs/PRD.md` (F01). Complexidade classificada como **média**
-> (entidade central com máquina de estados + duas entidades relacionadas,
-> sem concorrência, sem integração externa, sem multiusuário).
+> Entrada: `docs/PRD.md` (F01, F02, F03 — PR #15). Complexidade
+> classificada como **média** (entidade central com máquina de
+> estados + duas entidades relacionadas, sem concorrência, sem
+> integração externa, sem multiusuário).
+>
+> **F02 (painel do fornecedor) e F03 (PDF de status) estão
+> especificadas nas seções próprias abaixo, mas ainda não
+> implementadas** — este é um documento de spec antes do código,
+> mesmo padrão usado antes do scaffold do backend (Fase 0). Nenhuma
+> linha de React nem o endpoint de listagem/PDF existem ainda.
 
 ## Stack
 
-Java 21, Spring Boot 4.1.x, Spring Data JPA (Hibernate), PostgreSQL,
-Flyway, Docker Compose (Postgres local), JUnit 5, Bean Validation.
+Backend: Java 21, Spring Boot 4.1.x, Spring Data JPA (Hibernate),
+PostgreSQL, Flyway, Docker Compose (Postgres local), JUnit 5, Bean
+Validation.
+
+Frontend (F02, ainda não implementado): React + TypeScript + Vite +
+Tailwind CSS + React Router. Cliente HTTP: `fetch` nativo — sem axios,
+não há necessidade real hoje que justifique mais uma dependência (o
+projeto já erra pro lado de poucas dependências, ver REST Assured e
+Groovy nas notas de Fase 5).
+
+Geração de PDF (F03, ainda não implementado): **OpenPDF**
+(`com.github.librepdf:openpdf`, pacote `com.lowagie.text.*` — nome
+herdado do iText 2.x, de quem o OpenPDF é fork) no **backend**. Ver
+decisão completa na seção "Decisões de design" e no F03 abaixo.
 
 > Nota de stack (Fase 4): Boot 4.1 trocou pacote/artefato de teste 3
 > vezes ao longo das fases — Flyway (Fase 1), `@DataJpaTest`/
@@ -90,6 +109,33 @@ Flyway, Docker Compose (Postgres local), JUnit 5, Bean Validation.
   muda *porque* o documento foi enviado/aceito, não por um clique
   redundante). As demais transições (embarque, pagamentos, entrega,
   cancelamento) são explícitas.
+- **PDF de status (F03) nasce no backend, não no frontend.** O
+  backlog v2 já compromete com envio automático de e-mail a cada
+  mudança de estado — isso só roda no backend (reação a uma transição
+  dentro de `PedidoService`, sem navegador aberto, sem usuário
+  clicando nada). Gerar o PDF no frontend agora significaria
+  reescrever a mesma lógica em Java quando essa automação chegar. O
+  endpoint HTTP (`GET /pedidos/{numeroPedido}/status.pdf`, ver F03) é
+  o mesmo ponto que tanto o botão "Gerar PDF de status" do painel
+  quanto a futura automação de e-mail vão usar — o botão via HTTP, a
+  automação chamando o serviço de geração diretamente (mesmo processo,
+  sem round-trip HTTP consigo mesma). Um só lugar que sabe montar o
+  PDF, não dois.
+- **Biblioteca de PDF: OpenPDF, não iText moderno.** OpenPDF é fork
+  livre do iText 2.x (licença LGPL/MPL, permissiva). O iText moderno
+  (5+) é AGPL — obriga a abrir o código de qualquer produto que o
+  use publicamente ou exige licença comercial paga. Como este é um
+  produto que pode ser vendido (não é ferramenta interna descartável),
+  AGPL é uma armadilha de licenciamento a evitar desde o início, não
+  um detalhe pra resolver depois.
+- **Stack do frontend (F02): React + TypeScript + Vite + Tailwind CSS
+  + React Router, `fetch` nativo em vez de axios.** Vite pela
+  velocidade de dev padrão do ecossistema React hoje; Tailwind evita
+  escrever CSS a mais pra 3 telas; React Router porque são 3 rotas
+  reais (lista, criar, detalhe), não uma SPA de página única. `fetch`
+  nativo cobre tudo que as 3 telas precisam (GET/POST/PATCH com JSON)
+  sem justificar a dependência extra do axios — mesmo raciocínio já
+  aplicado ao backend (não adicionar biblioteca sem fricção real).
 
 ## Modelo de dados
 
@@ -266,6 +312,48 @@ mesma trava de validação de `transicionar()`
 compartilhado em `PedidoService` — não duplicam a checagem nem
 contornam o mapa de transições do enum.
 
+### Endpoints novos (F02/F03 — spec, ainda não implementados)
+
+| Método | Rota | Efeito |
+|---|---|---|
+| GET | `/pedidos` | Lista pedidos (`PedidoResponse[]`, mesmo DTO do GET individual — sem projeção resumida própria, ver justificativa abaixo). Query param opcional `?estado=` filtra por `PedidoEstado` (ex: `?estado=EMBARCADO`); omitido, retorna todos |
+| GET | `/pedidos/{numeroPedido}/status.pdf` | Gera e devolve o PDF de status (F03) do pedido no estado atual. `Content-Type: application/pdf`. Sem autenticação, mesma decisão de escopo do resto da API nesta leva. 404 (`PEDIDO_NAO_ENCONTRADO`) se o pedido não existir |
+
+**`GET /pedidos` reusa `PedidoResponse` sem criar um DTO de listagem
+resumido.** Cada linha da tela de lista (F02) só exibe um subconjunto
+dos campos (número, cliente, consignee, produto, ciaMaritima, estado,
+atualizadoEm), mas criar um segundo DTO só pra isso seria otimização
+prematura: o volume esperado é de uso por um único operador (ver
+Audiência no PRD), não uma tabela com milhares de linhas exigindo
+payload enxuto. Frontend simplesmente ignora os campos que não
+mostra na tabela.
+
+**Suporte necessário no backend pra `GET /pedidos`:**
+`PedidoRepository` ganha `findAll()` (já herdado de `JpaRepository`,
+nada a escrever) e `findByEstado(PedidoEstado estado)` (novo, Spring
+Data derivado); `PedidoService` ganha `listar(PedidoEstado
+estadoOuNull)` que delega pra um ou outro conforme o parâmetro seja
+nulo; `PedidoController` ganha o método de rota com
+`@RequestParam(required = false) PedidoEstado estado`.
+
+**`GET /pedidos/{numeroPedido}/status.pdf` (F03) — desenho do
+serviço:** um `PdfStatusService` (pacote a decidir, provavelmente
+`pedido.pdf`) monta o documento a partir de `Pedido` + a lista de
+`PedidoTransicao` (pro estado atual e a posição na barra de
+progresso) — os mesmos dados que `PedidoResponse`/
+`PedidoTransicaoResponse` já expõem, nenhum campo novo precisa ser
+calculado ou persistido. Conteúdo do PDF: dados do pedido (número,
+cliente, consignee, produto, incoterm) + visual de progresso das 8
+etapas do ciclo de vida (`CRIADO` → ... → `ENTREGUE`; `CANCELADO` é
+estado terminal fora dessa sequência, tratado à parte no visual —
+ex: um selo "cancelado" em vez de posição na barra), marcando em qual
+etapa o pedido está agora — inspirado em rastreio de transportadora
+(DHL, Correios). `PedidoController.statusPdf()` (ou um controller
+próprio) chama `PdfStatusService.gerar(pedido, historico)`
+diretamente — é o mesmo método que a futura automação de e-mail
+(backlog v2) vai chamar, sem passar por HTTP: o endpoint é uma forma
+de expor esse serviço pro navegador, não o único consumidor dele.
+
 Toda resposta de erro segue corpo padrão:
 ```json
 { "erro": "TRANSICAO_INVALIDA", "mensagem": "...", "estadoAtual": "...", "estadoSolicitado": "..." }
@@ -292,6 +380,79 @@ caso de pedir `enviar`/`aceitar`/`reabrir` pra um `tipo` que não tem
 registro de checklist pro pedido (hoje só possível pra
 `DOCUMENTO_ADICIONAL`, já que os 4 tipos obrigatórios sempre existem
 desde a criação do pedido).
+
+## F02 — Painel do fornecedor (spec técnica, ainda não implementado)
+
+Três rotas (React Router), uma por tela do PRD:
+
+| Rota | Tela |
+|---|---|
+| `/pedidos` | Lista de pedidos |
+| `/pedidos/novo` | Criar pedido |
+| `/pedidos/:numeroPedido` | Detalhe do pedido |
+
+### Lista de pedidos
+
+Chama `GET /pedidos` (com `?estado=` quando o filtro estiver ativo).
+Colunas da tabela, todas vindas de `PedidoResponse`: `numeroPedido`,
+`cliente`, `consignee`, `produto` (rotulado "descrição" na UI),
+`ciaMaritima`, `estado`, `atualizadoEm` (rotulado "última
+atualização"). Filtro por estado é um `<select>` com os 9 valores de
+`PedidoEstado`, refazendo o GET com `?estado=` ao mudar.
+
+### Criar pedido
+
+Formulário mapeado campo a campo pro `CriarPedidoRequest` existente —
+nenhum campo novo, nenhum campo do formulário sem destino no DTO.
+Agrupamento visual (PRD, seção F02) e o campo do DTO correspondente:
+
+| Grupo do formulário | Campo(s) do `CriarPedidoRequest` |
+|---|---|
+| Identificação | `numeroPedido`, `cliente`, `consignee` |
+| Descrição da mercadoria | `produto`, `quantidade`, `unidadeMedida` |
+| Logística | `paisDestino`, `portoOrigem`, `portoDestino` |
+| Condições comerciais | `condicoesComerciais.precoAcordado`, `condicoesComerciais.moeda`, `condicoesComerciais.incoterm`, `condicoesComerciais.formaPagamento`, `condicoesComerciais.percentualParcial` |
+
+Submit: `POST /pedidos` com o corpo montado no formato aninhado que
+`CriarPedidoRequest` já exige (objeto `condicoesComerciais`, não os 5
+campos soltos). Sucesso (`201`) navega pra `/pedidos/{numeroPedido}`
+(o `numeroPedido` retornado no `PedidoResponse` da resposta).
+
+**Gap conhecido, sem endpoint ainda:** `ciaMaritima` e
+`numeroContainer` existem no schema e em `PedidoResponse`, mas não
+há nenhum endpoint (nem em `CriarPedidoRequest`, nem em nenhum PATCH)
+pra defini-los — nem F01 nem esta spec de F02 criam um. Fazem sentido
+como dados que só existem depois da reserva de espaço no navio,
+tipicamente depois da criação do pedido, mas isso é uma lacuna real
+de API, não uma escolha de UI: o formulário de criação não os inclui
+porque não têm onde ir, e a tela de detalhe (abaixo) só os exibe
+como texto (read-only) quando presentes — sem UI de edição, porque
+não haveria o que chamar. Registrar como pendência pra uma spec
+futura, não resolver aqui.
+
+### Detalhe do pedido
+
+Carrega `GET /pedidos/{numeroPedido}` (dados do pedido + checklist,
+via `PedidoResponse`/`ChecklistDocumentoResponse`) e `GET
+/pedidos/{numeroPedido}/historico` (via `PedidoTransicaoResponse[]`)
+ao montar a tela. Ações e o endpoint que cada uma dispara:
+
+| Ação na tela | Endpoint |
+|---|---|
+| Enviar documento (por tipo do checklist) | `PATCH /pedidos/{numero}/documentos/{tipo}/enviar` |
+| Aceitar documento (por tipo) | `PATCH /pedidos/{numero}/documentos/{tipo}/aceitar` |
+| Reabrir documento (por tipo + motivo) | `PATCH /pedidos/{numero}/documentos/{tipo}/reabrir` |
+| Transicionar (escolher novo estado) | `PATCH /pedidos/{numero}/transicionar` |
+| Cancelar | **Não é endpoint separado** — é `PATCH /pedidos/{numero}/transicionar` com `{ "novoEstado": "CANCELADO" }`, já que `CANCELADO` é só mais um destino válido no mapa de transições do enum. A UI pode dar um botão dedicado "Cancelar pedido", mas por baixo é a mesma chamada de transicionar |
+| Confirmar pagamento parcial | `POST /pedidos/{numero}/pagamento-parcial` |
+| Confirmar pagamento de saldo | `POST /pedidos/{numero}/pagamento-saldo` |
+| Gerar PDF de status | `GET /pedidos/{numero}/status.pdf` — abre em nova aba (`target="_blank"`) ou dispara download; não é uma chamada `fetch` que precise de tratamento de JSON, é navegação direta pra uma URL que devolve `application/pdf` |
+
+Toda ação que muda estado (enviar/aceitar/reabrir/transicionar/
+pagamentos) recarrega `GET /pedidos/{numero}` e `GET
+/pedidos/{numero}/historico` depois de um `2xx` — não há
+atualização otimista de estado no cliente, o backend é a fonte da
+verdade e as chamadas são baratas o suficiente pra um único operador.
 
 ## Tabela de correlação — critério de aceitação × teste
 
@@ -322,9 +483,13 @@ desde a criação do pedido).
 | Fluxo completo criado→entregue (documentação, pagamentos, embarque, entrega) — valida cada estado retornado e o histórico completo ao final | E2E | `FluxoPedidoE2ETest.fluxoCompletoCriadoAteEntregue` |
 | Fluxo com cancelamento antes do embarque — transição após `CANCELADO` rejeitada com 409 | E2E | `FluxoPedidoE2ETest.cancelamentoAntesDoEmbarqueImpedeQualquerTransicaoDepois` |
 | Pagamento-saldo fora de sequência retorna 409 na API real (não só no nível de Service) | E2E | `FluxoPedidoE2ETest.pagamentoSaldoForaDeSequenciaRetorna409NaAPIReal` |
+| `GET /pedidos` lista todos os pedidos sem filtro; `?estado=` filtra corretamente | Unitário + API | **Planejado** (F02, ainda não implementado) — `PedidoServiceTest.listarSemFiltroRetornaTodosOsPedidos` + `listarComFiltroDeEstadoRetornaSoOsQueBatem` + `PedidoControllerTest.listarRetorna200ComTodosOsPedidos` + `listarComFiltroEstadoRetorna200SoComOsFiltrados` |
+| `GET /pedidos/{numero}/status.pdf` retorna 200 com `Content-Type: application/pdf`; pedido inexistente retorna 404 | API | **Planejado** (F03, ainda não implementado) — `PedidoControllerTest.gerarPdfStatusRetorna200ComContentTypePdf` + `gerarPdfStatusDePedidoInexistenteRetorna404` |
 
 ## Fora de escopo desta Spec
 
 Módulo de IA (triagem de testes), pipeline de CI, e autenticação —
-não fazem parte da F01, tratados em specs/tickets separados quando a
-F01 estiver implementada e testada.
+não fazem parte de F01/F02/F03, tratados em specs/tickets separados
+quando estiverem implementadas e testadas. Autenticação, especificamente,
+segue fora de escopo pras três features desta leva (F01, F02, F03) —
+mesma decisão registrada no PRD.
