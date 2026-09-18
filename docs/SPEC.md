@@ -25,6 +25,33 @@ Flyway, Docker Compose (Postgres local), JUnit 5, Bean Validation.
 > `org.springframework.test.context.bean.override.mockito.MockitoBean`
 > (de `spring-test`, não é mais um tipo do Boot).
 
+> Nota de stack (Fase 5): `@SpringBootTest`/`@LocalServerPort`
+> continuam em `spring-boot-test` (`org.springframework.boot.test.*`),
+> não sofreram o mesmo split de `@DataJpaTest`/`@WebMvcTest` — não
+> precisou de artefato novo. Duas pegadinhas achadas com REST Assured
+> 5.5.6, nenhuma delas do REST Assured em si:
+> 1. Ele exige um serializer JSON explícito no classpath
+>    (Jackson Databind 2.x, Gson, Johnzon ou Yasson) pra serializar
+>    `.body(pojo)`/`.body(map)` — o projeto está em Jackson 3
+>    (`tools.jackson.*`, ver acima), que ele não reconhece, e falha em
+>    runtime com `IllegalStateException: Cannot serialize object
+>    because no JSON serializer found in classpath`. Contornado
+>    mandando o corpo como `String` (JSON literal via text block) —
+>    não precisa de serializer nenhum, e evita adicionar mais uma
+>    dependência só pra isso.
+> 2. `spring-boot-dependencies` (importado via parent) fixa Groovy em
+>    **5.0.8** através de um import de `groovy-bom`, mas o REST
+>    Assured 5.5.x foi construído contra Groovy 4.0.22 — o MOP do
+>    Groovy 5 quebra internamente no REST Assured
+>    (`NullPointerException` em `ClosureMetaClass` ao montar
+>    requests `PATCH`, especificamente). Corrigido com
+>    `<dependencyManagement>` explícito no `pom.xml` re-fixando
+>    `org.apache.groovy:groovy`/`groovy-xml`/`groovy-json` em
+>    `4.0.22` — um simples override de propriedade não bastava,
+>    porque o placeholder `${groovy.version}` dentro do `groovy-bom`
+>    importado já foi interpolado com o valor do POM do Boot quando
+>    publicado.
+
 ## Decisões de design (com trade-off já resolvido, não reabrir sem fricção real)
 
 - **Máquina de estados**: enum `PedidoEstado` com mapa estático de
@@ -43,6 +70,20 @@ Flyway, Docker Compose (Postgres local), JUnit 5, Bean Validation.
   HTTP" abaixo. `DocumentacaoIncompletaException` citada aqui em
   fases anteriores nunca chegou a existir: o que ela cobriria virou
   `DocumentoNaoEnviadoException`/`DocumentoJaAceitoException`.
+- **E2E: REST Assured em vez de Playwright (mudança de escopo da
+  Fase 5, decidida com o dono do domínio).** O PLAN.md original
+  previa Playwright pros dois cenários E2E, mas hoje não existe UI
+  nenhuma — o sistema é só API REST (o "portal do cliente"/frontend
+  React é backlog v2, ainda não construído). Rodar Playwright contra
+  nada seria usar a ferramenta certa pro trabalho errado: Playwright
+  automatiza *browser*, e sem página pra abrir ele não testa nada que
+  uma chamada HTTP direta já não cubra, só adiciona a sobrecarga de
+  um browser headless sem necessidade. REST Assured testa o mesmo
+  contrato (API real, `@SpringBootTest(RANDOM_PORT)`, Postgres real,
+  sem mock) com a ferramenta proporcional ao que existe agora.
+  Playwright volta a fazer sentido quando o frontend existir de
+  verdade — nesse momento os cenários de UI dele são adicionais aos
+  de API, não substitutos.
 - **Transições automáticas vs. manuais**: os dois primeiros passos do
   fluxo documental são efeitos colaterais de ações no checklist, não
   chamadas manuais de transição — reflete o negócio real (o estado
@@ -278,8 +319,9 @@ desde a criação do pedido).
 | Documento inexistente (tipo sem registro de checklist) retorna 404; `{tipo}` inválido na rota retorna 400 | API | `ChecklistControllerTest.enviarDocumentoInexistenteRetorna404` + `tipoDocumentoInvalidoNaRotaRetorna400` |
 | Pagamento parcial/saldo fora de sequência retorna 409; válido retorna 200 | API | `PedidoControllerTest.confirmarPagamentoParcialRetorna200` + `confirmarPagamentoParcialForaDeSequenciaRetorna409` + `confirmarPagamentoSaldoRetorna200` + `confirmarPagamentoSaldoSemEstarEmbarcadoRetorna409` |
 | Histórico vazio retorna lista vazia; com transições retorna ordenado; pedido inexistente retorna 404 | API | `PedidoControllerTest.historicoVazioRetorna200ComListaVazia` + `historicoComTransicoesRetornaListaOrdenada` + `historicoDePedidoInexistenteRetorna404` |
-| Fluxo completo criado→entregue | E2E | Fora de escopo ainda — Fase 5 |
-| Fluxo com cancelamento antes do embarque | E2E | Fora de escopo ainda — Fase 5 |
+| Fluxo completo criado→entregue (documentação, pagamentos, embarque, entrega) — valida cada estado retornado e o histórico completo ao final | E2E | `FluxoPedidoE2ETest.fluxoCompletoCriadoAteEntregue` |
+| Fluxo com cancelamento antes do embarque — transição após `CANCELADO` rejeitada com 409 | E2E | `FluxoPedidoE2ETest.cancelamentoAntesDoEmbarqueImpedeQualquerTransicaoDepois` |
+| Pagamento-saldo fora de sequência retorna 409 na API real (não só no nível de Service) | E2E | `FluxoPedidoE2ETest.pagamentoSaldoForaDeSequenciaRetorna409NaAPIReal` |
 
 ## Fora de escopo desta Spec
 
