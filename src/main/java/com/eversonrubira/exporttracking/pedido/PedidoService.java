@@ -106,4 +106,15 @@ public class PedidoService {
         Pedido pedido = buscarPorNumero(numeroPedido);
         return transicaoRepository.findByPedidoIdOrderByOcorridoEmAsc(pedido.getId());
     }
+
+    public List<Pedido> listar(PedidoEstado estado) {
+        return estado == null ? pedidoRepository.findAll() : pedidoRepository.findByEstado(estado);
+    }
+
+    @Transactional
+    public Pedido atualizarDadosLogisticos(String numeroPedido, String ciaMaritima, String numeroContainer) {
+        Pedido pedido = buscarPorNumero(numeroPedido);
+        pedido.aplicarDadosLogisticos(ciaMaritima, numeroContainer);
+        return pedido;
+    }
 }

@@ -1,8 +1,95 @@
 # Status — TrackCargo
 
 ## Última atualização
-18/set/2026 — Fase 6 (CI) implementada e confirmada rodando no
-GitHub Actions, branch `feat/fase6-ci-github-actions`
+18/set/2026 — Backend de F02/F03 implementado (listagem, dados
+logísticos, PDF de status), branch `feat/f02-f03-endpoints-backend`
+
+## Onde paramos (backend de F02/F03)
+
+Implementados os 3 endpoints que o SPEC.md já especificava (PR #16,
+mergeado) — nenhuma linha de React ainda, só backend:
+
+- **`GET /pedidos`** (novo — antes só existia `GET /pedidos/{numero}`),
+  filtro opcional `?estado=`. `PedidoRepository.findByEstado()` novo;
+  `PedidoService.listar(PedidoEstado estadoOuNull)` delega pra
+  `findAll()` ou `findByEstado()`. Reusa `PedidoResponse`, sem DTO de
+  listagem próprio (decisão já registrada no SPEC.md).
+- **`PATCH /pedidos/{numero}/logistica`** — atualiza `ciaMaritima`
+  e/ou `numeroContainer`, PATCH parcial (cada campo só muda se vier
+  preenchido). `Pedido.aplicarDadosLogisticos()` pacote-privado
+  substituiu `setCiaMaritima`/`setNumeroContainer`, os únicos
+  setters públicos remanescentes na entidade desde a Fase 1 — não
+  existem mais. Sem `PedidoOcorrencia` (progressão normal, não
+  correção). Sem regra de transição de estado (funciona em qualquer
+  estado do ciclo de vida).
+- **`GET /pedidos/{numero}/status.pdf`** — `PdfStatusService` novo
+  (pacote `pedido.pdf`), gera o PDF via OpenPDF a partir de `Pedido`
+  + histórico: dados do pedido + tabela de progresso das 8 etapas do
+  ciclo de vida com a atual destacada (`CANCELADO` vira selo à parte).
+  Controller devolve `ResponseEntity<byte[]>` com `produces =
+  MediaType.APPLICATION_PDF_VALUE`. Mesmo método (`gerar(pedido,
+  historico)`) que a futura automação de e-mail do backlog v2 vai
+  chamar direto, sem HTTP.
+
+**Descoberta de stack (5ª desta linha, depois de Flyway,
+`@DataJpaTest`, `@WebMvcTest`/Jackson 3, e Groovy do REST Assured):**
+OpenPDF mudou de pacote entre versões — `com.lowagie.text.*` (nome
+herdado do iText 2.x, o que o SPEC.md especulava antes da
+implementação) só existe até a série 1.3.x; a partir da 2.x/3.x é
+`org.openpdf.text.*`. Usamos a **3.0.5**, confirmada como a versão
+estável atual via `maven-metadata.xml` do Maven Central antes de
+fixar no `pom.xml` — não a mais recente encontrada só resolvendo
+`dependency:get`, que teria deixado passar `1.3.42`/`2.0.x` sem
+avisar que não eram as mais novas. Retornar `byte[]` de um
+`@RestController` não teve nenhuma pegadinha própria do Boot 4.1 —
+`MediaType.APPLICATION_PDF`/`ByteArrayHttpMessageConverter` seguem
+sem mudança de pacote em `spring-web`, a migração pra Jackson 3 afeta
+só a conversão JSON.
+
+**Testes novos:**
+- `PedidoServiceTest` (+5): `listarSemFiltroRetornaTodosOsPedidos`,
+  `listarComFiltroDeEstadoRetornaSoOsQueBatem`,
+  `atualizarDadosLogisticosComOsDoisCamposAtualizaAmbos`,
+  `atualizarDadosLogisticosComSoCiaMaritimaNaoMexeNoContainer`,
+  `atualizarDadosLogisticosComSoContainerNaoMexeNaCiaMaritima`.
+- `PedidoControllerTest` (+8): listagem com/sem filtro (2), logística
+  com os 3 casos + 404 (4), PDF com 200/content-type e 404 (2).
+- `FluxoPedidoE2ETest` (+1 cenário novo, e o cenário
+  `fluxoCompletoCriadoAteEntregue` ganhou passos extras): dados
+  logísticos preenchidos depois do embarque, `GET /pedidos?estado=`
+  confirmando o filtro, e `GET /pedidos/{numero}/status.pdf` gerando
+  um PDF de verdade (não mockado) no fim do fluxo completo — mais um
+  cenário dedicado só de listagem (`listarSemFiltroInclui...`), sem
+  duplicar o setup do fluxo principal.
+
+`docs/SPEC.md` atualizado: as 3 linhas da tabela de correlação que
+estavam "Planejado" agora apontam pros testes reais; seção de
+endpoints de F02/F03 marcada como implementada; nota sobre o pacote
+real do OpenPDF corrigida (era só especulação antes da
+implementação).
+
+## Resultado da suíte completa (mvn test) — 2 rodadas
+**59/59 verde nas duas rodadas** (6 `ChecklistServiceTest` + 3
+`PedidoRepositoryTest` + 15 `PedidoServiceTest` + 9
+`ChecklistControllerTest` + 22 `PedidoControllerTest` + 4
+`FluxoPedidoE2ETest`):
+- Rodada 1: suíte completa normal.
+- Rodada 2: banco recriado do zero (`DROP DATABASE` + `CREATE
+  DATABASE`), forçando o Flyway a reaplicar V1→V2→V3.
+
+Nota de ambiente (mantida de fases anteriores): `docker compose`
+continua não testado nesta sessão pela mesma restrição de rede do
+sandbox já registrada — Postgres 16 nativo usado no lugar, mesmas
+credenciais/porta do `application.yml`.
+
+## Estado de saída (backend de F02/F03)
+Fechado: os 3 endpoints implementados e testados, suíte completa
+59/59 em duas rodadas, `docs/SPEC.md` e `docs/STATUS.md` atualizados.
+PR aberto, aguardando revisão/merge. **Nenhum código React ainda** —
+isso é só backend, como pedido. Não avanço pro frontend sem
+confirmação.
+
+---
 
 ## Onde paramos (Fase 6 — CI, última fase do PLAN.md)
 

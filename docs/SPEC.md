@@ -5,11 +5,12 @@
 > estados + duas entidades relacionadas, sem concorrência, sem
 > integração externa, sem multiusuário).
 >
-> **F02 (painel do fornecedor) e F03 (PDF de status) estão
-> especificadas nas seções próprias abaixo, mas ainda não
-> implementadas** — este é um documento de spec antes do código,
-> mesmo padrão usado antes do scaffold do backend (Fase 0). Nenhuma
-> linha de React nem o endpoint de listagem/PDF existem ainda.
+> **Backend de F02/F03 implementado** (`GET /pedidos`, `PATCH
+> /pedidos/{numero}/logistica`, `GET /pedidos/{numero}/status.pdf`
+> — ver seção "Endpoints de F02/F03" abaixo). **F02 em si (o painel,
+> React) segue só especificado, sem nenhuma linha de código ainda**
+> — as telas descritas na seção "F02 — Painel do fornecedor" abaixo
+> vão consumir esses endpoints quando implementadas.
 
 ## Stack
 
@@ -23,10 +24,11 @@ não há necessidade real hoje que justifique mais uma dependência (o
 projeto já erra pro lado de poucas dependências, ver REST Assured e
 Groovy nas notas de Fase 5).
 
-Geração de PDF (F03, ainda não implementado): **OpenPDF**
-(`com.github.librepdf:openpdf`, pacote `com.lowagie.text.*` — nome
-herdado do iText 2.x, de quem o OpenPDF é fork) no **backend**. Ver
-decisão completa na seção "Decisões de design" e no F03 abaixo.
+Geração de PDF (F03): **OpenPDF `3.0.5`** (`com.github.librepdf:openpdf`,
+pacote `org.openpdf.text.*` — renomeado de `com.lowagie.text.*`, nome
+herdado do iText 2.x, a partir da major version 2.x/3.x) no
+**backend**. Ver decisão completa na seção "Decisões de design" e no
+F03 abaixo.
 
 > Nota de stack (Fase 4): Boot 4.1 trocou pacote/artefato de teste 3
 > vezes ao longo das fases — Flyway (Fase 1), `@DataJpaTest`/
@@ -312,7 +314,7 @@ mesma trava de validação de `transicionar()`
 compartilhado em `PedidoService` — não duplicam a checagem nem
 contornam o mapa de transições do enum.
 
-### Endpoints novos (F02/F03 — spec, ainda não implementados)
+### Endpoints de F02/F03 (implementados)
 
 | Método | Rota | Efeito |
 |---|---|---|
@@ -329,31 +331,52 @@ Audiência no PRD), não uma tabela com milhares de linhas exigindo
 payload enxuto. Frontend simplesmente ignora os campos que não
 mostra na tabela.
 
-**Suporte necessário no backend pra `GET /pedidos`:**
-`PedidoRepository` ganha `findAll()` (já herdado de `JpaRepository`,
-nada a escrever) e `findByEstado(PedidoEstado estado)` (novo, Spring
-Data derivado); `PedidoService` ganha `listar(PedidoEstado
-estadoOuNull)` que delega pra um ou outro conforme o parâmetro seja
-nulo; `PedidoController` ganha o método de rota com
-`@RequestParam(required = false) PedidoEstado estado`.
+**Suporte no backend pra `GET /pedidos`:**
+`PedidoRepository` ganhou `findByEstado(PedidoEstado estado)` (Spring
+Data derivado, `findAll()` já vem de `JpaRepository`);
+`PedidoService.listar(PedidoEstado estadoOuNull)` delega pra um ou
+outro conforme o parâmetro seja nulo; `PedidoController.listar()`
+recebe `@RequestParam(required = false) PedidoEstado estado`.
 
-**`GET /pedidos/{numeroPedido}/status.pdf` (F03) — desenho do
-serviço:** um `PdfStatusService` (pacote a decidir, provavelmente
-`pedido.pdf`) monta o documento a partir de `Pedido` + a lista de
-`PedidoTransicao` (pro estado atual e a posição na barra de
-progresso) — os mesmos dados que `PedidoResponse`/
-`PedidoTransicaoResponse` já expõem, nenhum campo novo precisa ser
-calculado ou persistido. Conteúdo do PDF: dados do pedido (número,
-cliente, consignee, produto, incoterm) + visual de progresso das 8
-etapas do ciclo de vida (`CRIADO` → ... → `ENTREGUE`; `CANCELADO` é
-estado terminal fora dessa sequência, tratado à parte no visual —
-ex: um selo "cancelado" em vez de posição na barra), marcando em qual
-etapa o pedido está agora — inspirado em rastreio de transportadora
-(DHL, Correios). `PedidoController.statusPdf()` (ou um controller
-próprio) chama `PdfStatusService.gerar(pedido, historico)`
-diretamente — é o mesmo método que a futura automação de e-mail
-(backlog v2) vai chamar, sem passar por HTTP: o endpoint é uma forma
-de expor esse serviço pro navegador, não o único consumidor dele.
+**`GET /pedidos/{numeroPedido}/status.pdf` (F03) — implementação:**
+`PdfStatusService` (pacote `pedido.pdf`) monta o documento a partir
+de `Pedido` + a lista de `PedidoTransicao` (pro estado atual, a
+posição na barra de progresso, e a data da última transição) — os
+mesmos dados que `PedidoResponse`/`PedidoTransicaoResponse` já
+expõem, nenhum campo novo calculado ou persistido. Conteúdo do PDF:
+dados do pedido (número, cliente, consignee, produto, incoterm) +
+tabela de progresso das 8 etapas do ciclo de vida (`CRIADO` → ... →
+`ENTREGUE`, células até a atual destacadas com fundo verde claro;
+`CANCELADO` é estado terminal fora dessa sequência, mostrado como
+selo "PEDIDO CANCELADO" em vez de posição na barra) — inspirado em
+rastreio de transportadora (DHL, Correios). `PedidoController.statusPdf()`
+chama `PdfStatusService.gerar(pedido, historico)` diretamente,
+devolvendo `ResponseEntity<byte[]>` com `produces =
+MediaType.APPLICATION_PDF_VALUE` — o mesmo método que a futura
+automação de e-mail (backlog v2) vai chamar, sem passar por HTTP.
+
+> **Biblioteca real: OpenPDF `3.0.5`** (`com.github.librepdf:openpdf`,
+> confirmada como a versão estável atual via `maven-metadata.xml`
+> antes de fixar). O pacote das classes **não é** `com.lowagie.text.*`
+> como esta Spec especulava antes da implementação — a partir da
+> major version 2.x/3.x o OpenPDF renomeou o pacote pra
+> `org.openpdf.text.*` (`org.openpdf.text.Document`,
+> `org.openpdf.text.pdf.PdfWriter`, `org.openpdf.text.pdf.PdfPTable`
+> etc.), embora `com.lowagie.text` ainda apareça na documentação
+> antiga do projeto. Confirmado inspecionando o jar antes de escrever
+> qualquer linha de código — o padrão desta stack de checar antes de
+> assumir (Flyway, `@DataJpaTest`, `@WebMvcTest`/Jackson 3, Groovy do
+> REST Assured) valeu de novo. Licença permanece LGPL/MPL (dual),
+> motivo original de escolher OpenPDF em vez do iText moderno (AGPL)
+> continua válido.
+>
+> Retornar `byte[]` de um `@RestController` não tem nada de peculiar
+> no Boot 4.1: `MediaType.APPLICATION_PDF`/`APPLICATION_PDF_VALUE` e
+> `ByteArrayHttpMessageConverter` continuam em `spring-web` sem
+> mudança de pacote — a migração pra Jackson 3 (Fase 4) afeta só a
+> conversão JSON, `byte[]` passa por um converter totalmente
+> separado. Único gotcha real de stack nesta peça foi o pacote do
+> OpenPDF, não o Spring.
 
 **`PATCH /pedidos/{numeroPedido}/logistica` — por que é um endpoint
 separado, sem regra de transição de estado nenhuma:** diferente do
@@ -517,9 +540,10 @@ dos valores atualizados de `ciaMaritima`/`numeroContainer`.
 | Fluxo completo criado→entregue (documentação, pagamentos, embarque, entrega) — valida cada estado retornado e o histórico completo ao final | E2E | `FluxoPedidoE2ETest.fluxoCompletoCriadoAteEntregue` |
 | Fluxo com cancelamento antes do embarque — transição após `CANCELADO` rejeitada com 409 | E2E | `FluxoPedidoE2ETest.cancelamentoAntesDoEmbarqueImpedeQualquerTransicaoDepois` |
 | Pagamento-saldo fora de sequência retorna 409 na API real (não só no nível de Service) | E2E | `FluxoPedidoE2ETest.pagamentoSaldoForaDeSequenciaRetorna409NaAPIReal` |
-| `GET /pedidos` lista todos os pedidos sem filtro; `?estado=` filtra corretamente | Unitário + API | **Planejado** (F02, ainda não implementado) — `PedidoServiceTest.listarSemFiltroRetornaTodosOsPedidos` + `listarComFiltroDeEstadoRetornaSoOsQueBatem` + `PedidoControllerTest.listarRetorna200ComTodosOsPedidos` + `listarComFiltroEstadoRetorna200SoComOsFiltrados` |
-| `GET /pedidos/{numero}/status.pdf` retorna 200 com `Content-Type: application/pdf`; pedido inexistente retorna 404 | API | **Planejado** (F03, ainda não implementado) — `PedidoControllerTest.gerarPdfStatusRetorna200ComContentTypePdf` + `gerarPdfStatusDePedidoInexistenteRetorna404` |
-| `PATCH /pedidos/{numero}/logistica` atualiza só `ciaMaritima`, só `numeroContainer`, ou os dois juntos; não gera `PedidoOcorrencia`; sem regra de estado (funciona em qualquer estado) | API | **Planejado** (ainda não implementado) — `PedidoControllerTest.atualizarLogisticaComSoCiaMaritimaAtualizaSoEsseCampo` + `atualizarLogisticaComSoNumeroContainerAtualizaSoEsseCampo` + `atualizarLogisticaComOsDoisCamposAtualizaAmbos` |
+| `GET /pedidos` lista todos os pedidos sem filtro; `?estado=` filtra corretamente | Unitário + API | `PedidoServiceTest.listarSemFiltroRetornaTodosOsPedidos` + `listarComFiltroDeEstadoRetornaSoOsQueBatem` + `PedidoControllerTest.listarSemFiltroRetorna200ComTodosOsPedidos` + `listarComFiltroEstadoRetorna200SoComOsFiltrados` |
+| `GET /pedidos/{numero}/status.pdf` retorna 200 com `Content-Type: application/pdf`; pedido inexistente retorna 404 | API | `PedidoControllerTest.gerarPdfStatusRetorna200ComContentTypePdf` + `gerarPdfStatusDePedidoInexistenteRetorna404` |
+| `PATCH /pedidos/{numero}/logistica` atualiza só `ciaMaritima`, só `numeroContainer`, ou os dois juntos; não gera `PedidoOcorrencia`; sem regra de estado (funciona em qualquer estado); pedido inexistente retorna 404 | Unitário + API | `PedidoServiceTest.atualizarDadosLogisticosComOsDoisCamposAtualizaAmbos` + `atualizarDadosLogisticosComSoCiaMaritimaNaoMexeNoContainer` + `atualizarDadosLogisticosComSoContainerNaoMexeNaCiaMaritima` + `PedidoControllerTest.atualizarLogisticaComSoCiaMaritimaAtualizaSoEsseCampo` + `atualizarLogisticaComSoNumeroContainerAtualizaSoEsseCampo` + `atualizarLogisticaComOsDoisCamposAtualizaAmbos` + `atualizarLogisticaDePedidoInexistenteRetorna404` |
+| Listagem e atualização de dados logísticos no meio do fluxo real; PDF de status gerado de verdade (OpenPDF) no final do fluxo completo | E2E | `FluxoPedidoE2ETest.fluxoCompletoCriadoAteEntregue` (logística + `?estado=` + `status.pdf`) + `listarSemFiltroIncluiPedidoRecemCriadoEComFiltroDeEstadoSoOsQueBatem` |
 
 ## Fora de escopo desta Spec
 
