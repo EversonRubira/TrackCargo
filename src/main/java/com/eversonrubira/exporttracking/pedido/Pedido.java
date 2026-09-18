@@ -185,6 +185,20 @@ public class Pedido {
         this.pagamentoSaldoConfirmadoEm = LocalDateTime.now();
     }
 
+    // Sem regra de transicao de estado: cia maritima e container nao
+    // tem um momento fixo no ciclo de vida (booking confirma a
+    // companhia, o BL formaliza o container). Update parcial - cada
+    // parametro so e aplicado se nao-nulo. Sem PedidoOcorrencia: e
+    // progressao normal do dado logistico, nao uma correcao/excecao.
+    void aplicarDadosLogisticos(String novaCiaMaritima, String novoNumeroContainer) {
+        if (novaCiaMaritima != null) {
+            this.ciaMaritima = novaCiaMaritima;
+        }
+        if (novoNumeroContainer != null) {
+            this.numeroContainer = novoNumeroContainer;
+        }
+    }
+
     public UUID getId() { return id; }
     public String getNumeroPedido() { return numeroPedido; }
     public String getCliente() { return cliente; }
@@ -196,9 +210,7 @@ public class Pedido {
     public BigDecimal getQuantidade() { return quantidade; }
     public String getUnidadeMedida() { return unidadeMedida; }
     public String getCiaMaritima() { return ciaMaritima; }
-    public void setCiaMaritima(String ciaMaritima) { this.ciaMaritima = ciaMaritima; }
     public String getNumeroContainer() { return numeroContainer; }
-    public void setNumeroContainer(String numeroContainer) { this.numeroContainer = numeroContainer; }
     public BigDecimal getPrecoAcordado() { return precoAcordado; }
     public String getMoeda() { return moeda; }
     public Incoterm getIncoterm() { return incoterm; }

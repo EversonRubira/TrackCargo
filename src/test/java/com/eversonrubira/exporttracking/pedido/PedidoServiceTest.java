@@ -186,6 +186,54 @@ class PedidoServiceTest {
     }
 
     @Test
+    void listarSemFiltroRetornaTodosOsPedidos() {
+        when(pedidoRepository.findAll()).thenReturn(List.of(pedido));
+
+        List<Pedido> pedidos = pedidoService.listar(null);
+
+        assertThat(pedidos).containsExactly(pedido);
+        verify(pedidoRepository, never()).findByEstado(any());
+    }
+
+    @Test
+    void listarComFiltroDeEstadoRetornaSoOsQueBatem() {
+        when(pedidoRepository.findByEstado(PedidoEstado.EMBARCADO)).thenReturn(List.of(pedido));
+
+        List<Pedido> pedidos = pedidoService.listar(PedidoEstado.EMBARCADO);
+
+        assertThat(pedidos).containsExactly(pedido);
+        verify(pedidoRepository, never()).findAll();
+    }
+
+    @Test
+    void atualizarDadosLogisticosComOsDoisCamposAtualizaAmbos() {
+        Pedido atualizado = pedidoService.atualizarDadosLogisticos("PO-0001", "Maersk", "MSKU1234567");
+
+        assertThat(atualizado.getCiaMaritima()).isEqualTo("Maersk");
+        assertThat(atualizado.getNumeroContainer()).isEqualTo("MSKU1234567");
+    }
+
+    @Test
+    void atualizarDadosLogisticosComSoCiaMaritimaNaoMexeNoContainer() {
+        pedidoService.atualizarDadosLogisticos("PO-0001", "Maersk", "MSKU1234567");
+
+        pedidoService.atualizarDadosLogisticos("PO-0001", "MSC", null);
+
+        assertThat(pedido.getCiaMaritima()).isEqualTo("MSC");
+        assertThat(pedido.getNumeroContainer()).isEqualTo("MSKU1234567");
+    }
+
+    @Test
+    void atualizarDadosLogisticosComSoContainerNaoMexeNaCiaMaritima() {
+        pedidoService.atualizarDadosLogisticos("PO-0001", "Maersk", null);
+
+        pedidoService.atualizarDadosLogisticos("PO-0001", null, "MSKU7654321");
+
+        assertThat(pedido.getCiaMaritima()).isEqualTo("Maersk");
+        assertThat(pedido.getNumeroContainer()).isEqualTo("MSKU7654321");
+    }
+
+    @Test
     void naoPermiteSegundoDocumentoAdicionalParaOMesmoPedido() {
         when(checklistRepository.existsByPedidoIdAndTipoDocumento(pedido.getId(), TipoDocumento.DOCUMENTO_ADICIONAL))
                 .thenReturn(true);

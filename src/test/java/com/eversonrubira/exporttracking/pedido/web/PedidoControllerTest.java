@@ -10,6 +10,7 @@ import com.eversonrubira.exporttracking.pedido.PedidoTransicao;
 import com.eversonrubira.exporttracking.pedido.TipoDocumento;
 import com.eversonrubira.exporttracking.pedido.exception.PedidoNaoEncontradoException;
 import com.eversonrubira.exporttracking.pedido.exception.TransicaoInvalidaException;
+import com.eversonrubira.exporttracking.pedido.pdf.PdfStatusService;
 import com.eversonrubira.exporttracking.pedido.web.dto.CondicoesComerciaisRequest;
 import com.eversonrubira.exporttracking.pedido.web.dto.CriarPedidoRequest;
 import com.eversonrubira.exporttracking.pedido.web.dto.TransicionarRequest;
@@ -27,10 +28,13 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -47,6 +51,9 @@ class PedidoControllerTest {
 
     @MockitoBean
     private PedidoService pedidoService;
+
+    @MockitoBean
+    private PdfStatusService pdfStatusService;
 
     private Pedido pedido;
 
@@ -248,6 +255,113 @@ class PedidoControllerTest {
                 .thenThrow(new PedidoNaoEncontradoException("PO-9999"));
 
         mockMvc.perform(get("/pedidos/PO-9999/historico"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.erro").value("PEDIDO_NAO_ENCONTRADO"));
+    }
+
+    @Test
+    void listarSemFiltroRetorna200ComTodosOsPedidos() throws Exception {
+        when(pedidoService.listar(null)).thenReturn(List.of(pedido));
+        when(pedidoService.buscarChecklist("PO-0001")).thenReturn(List.of());
+
+        mockMvc.perform(get("/pedidos"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].numeroPedido").value("PO-0001"));
+    }
+
+    @Test
+    void listarComFiltroEstadoRetorna200SoComOsFiltrados() throws Exception {
+        when(pedidoService.listar(PedidoEstado.EMBARCADO)).thenReturn(List.of(pedido));
+        when(pedidoService.buscarChecklist("PO-0001")).thenReturn(List.of());
+
+        mockMvc.perform(get("/pedidos").param("estado", "EMBARCADO"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+
+        verify(pedidoService).listar(PedidoEstado.EMBARCADO);
+    }
+
+    @Test
+    void atualizarLogisticaComSoCiaMaritimaAtualizaSoEsseCampo() throws Exception {
+        when(pedidoService.atualizarDadosLogisticos("PO-0001", "Maersk", null)).thenReturn(pedido);
+        when(pedidoService.buscarChecklist("PO-0001")).thenReturn(List.of());
+
+        mockMvc.perform(patch("/pedidos/PO-0001/logistica")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "ciaMaritima": "Maersk" }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.numeroPedido").value("PO-0001"));
+
+        verify(pedidoService).atualizarDadosLogisticos(eq("PO-0001"), eq("Maersk"), isNull());
+    }
+
+    @Test
+    void atualizarLogisticaComSoNumeroContainerAtualizaSoEsseCampo() throws Exception {
+        when(pedidoService.atualizarDadosLogisticos("PO-0001", null, "MSKU1234567")).thenReturn(pedido);
+        when(pedidoService.buscarChecklist("PO-0001")).thenReturn(List.of());
+
+        mockMvc.perform(patch("/pedidos/PO-0001/logistica")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "numeroContainer": "MSKU1234567" }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.numeroPedido").value("PO-0001"));
+
+        verify(pedidoService).atualizarDadosLogisticos(eq("PO-0001"), isNull(), eq("MSKU1234567"));
+    }
+
+    @Test
+    void atualizarLogisticaComOsDoisCamposAtualizaAmbos() throws Exception {
+        when(pedidoService.atualizarDadosLogisticos("PO-0001", "Maersk", "MSKU1234567")).thenReturn(pedido);
+        when(pedidoService.buscarChecklist("PO-0001")).thenReturn(List.of());
+
+        mockMvc.perform(patch("/pedidos/PO-0001/logistica")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "ciaMaritima": "Maersk", "numeroContainer": "MSKU1234567" }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.numeroPedido").value("PO-0001"));
+
+        verify(pedidoService).atualizarDadosLogisticos("PO-0001", "Maersk", "MSKU1234567");
+    }
+
+    @Test
+    void atualizarLogisticaDePedidoInexistenteRetorna404() throws Exception {
+        when(pedidoService.atualizarDadosLogisticos("PO-9999", "Maersk", null))
+                .thenThrow(new PedidoNaoEncontradoException("PO-9999"));
+
+        mockMvc.perform(patch("/pedidos/PO-9999/logistica")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "ciaMaritima": "Maersk" }
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.erro").value("PEDIDO_NAO_ENCONTRADO"));
+    }
+
+    @Test
+    void gerarPdfStatusRetorna200ComContentTypePdf() throws Exception {
+        byte[] pdfFalso = {1, 2, 3};
+        when(pedidoService.buscarPorNumero("PO-0001")).thenReturn(pedido);
+        when(pedidoService.buscarHistorico("PO-0001")).thenReturn(List.of());
+        when(pdfStatusService.gerar(pedido, List.of())).thenReturn(pdfFalso);
+
+        mockMvc.perform(get("/pedidos/PO-0001/status.pdf"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF));
+    }
+
+    @Test
+    void gerarPdfStatusDePedidoInexistenteRetorna404() throws Exception {
+        when(pedidoService.buscarPorNumero("PO-9999"))
+                .thenThrow(new PedidoNaoEncontradoException("PO-9999"));
+
+        mockMvc.perform(get("/pedidos/PO-9999/status.pdf"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.erro").value("PEDIDO_NAO_ENCONTRADO"));
     }

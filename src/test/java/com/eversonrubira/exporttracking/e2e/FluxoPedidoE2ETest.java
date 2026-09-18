@@ -14,6 +14,8 @@ import java.util.UUID;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 // E2E de verdade: sobe o contexto Spring inteiro numa porta aleatoria
 // (RANDOM_PORT) e bate via HTTP real contra o Postgres do
@@ -69,6 +71,23 @@ class FluxoPedidoE2ETest {
 
         transicionar(numeroPedido, "EMBARCADO");
 
+        // Cia maritima/container so ficam conhecidos depois que o navio
+        // sai - sem regra de transicao de estado, so precisa poder ser
+        // preenchido quando a informacao chegar (ver SPEC.md).
+        given().pathParam("numero", numeroPedido).contentType(ContentType.JSON)
+                .body("""
+                        { "ciaMaritima": "Maersk", "numeroContainer": "MSKU1234567" }
+                        """)
+                .when().patch("/pedidos/{numero}/logistica")
+                .then().statusCode(200)
+                .body("ciaMaritima", equalTo("Maersk"))
+                .body("numeroContainer", equalTo("MSKU1234567"));
+
+        given().queryParam("estado", "EMBARCADO")
+                .when().get("/pedidos")
+                .then().statusCode(200)
+                .body("find { it.numeroPedido == '%s' }.ciaMaritima".formatted(numeroPedido), equalTo("Maersk"));
+
         given().pathParam("numero", numeroPedido)
                 .when().post("/pedidos/{numero}/pagamento-saldo")
                 .then().statusCode(200).body("estado", equalTo("PAGAMENTO_SALDO_RECEBIDO"));
@@ -91,6 +110,31 @@ class FluxoPedidoE2ETest {
                 "DOCUMENTOS_ORIGINAIS_ENVIADOS",
                 "ENTREGUE");
         assertThat(historico.jsonPath().getList("estadoAnterior", String.class).get(0)).isNull();
+
+        given().pathParam("numero", numeroPedido)
+                .when().get("/pedidos/{numero}/status.pdf")
+                .then().statusCode(200)
+                .contentType("application/pdf");
+    }
+
+    @Test
+    void listarSemFiltroIncluiPedidoRecemCriadoEComFiltroDeEstadoSoOsQueBatem() {
+        String numeroPedido = novoNumeroPedido();
+        criarPedido(numeroPedido);
+
+        given().when().get("/pedidos")
+                .then().statusCode(200)
+                .body("numeroPedido", hasItem(numeroPedido));
+
+        given().queryParam("estado", "CRIADO")
+                .when().get("/pedidos")
+                .then().statusCode(200)
+                .body("numeroPedido", hasItem(numeroPedido));
+
+        given().queryParam("estado", "ENTREGUE")
+                .when().get("/pedidos")
+                .then().statusCode(200)
+                .body("numeroPedido", not(hasItem(numeroPedido)));
     }
 
     @Test

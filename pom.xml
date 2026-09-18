@@ -79,6 +79,18 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- F03: PDF de status. Versao 3.0.5 e a atual estavel (conferida
+             via maven-metadata.xml antes de fixar) - pacote mudou de
+             com.lowagie.text.* (legado, herdado do iText 2.x) pra
+             org.openpdf.text.* nessa major version. Licenca permanece
+             LGPL/MPL (dual), motivo original de escolher OpenPDF em vez
+             do iText moderno (AGPL). -->
+        <dependency>
+            <groupId>com.github.librepdf</groupId>
+            <artifactId>openpdf</artifactId>
+            <version>3.0.5</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
