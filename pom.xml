@@ -21,6 +21,35 @@
         <java.version>21</java.version>
     </properties>
 
+    <!-- spring-boot-dependencies (importado via parent) forca Groovy
+         5.0.8 via groovy-bom, mas REST Assured 5.5.x foi construido
+         contra Groovy 4.0.22 - o MOP do Groovy 5 quebra internamente no
+         REST Assured (NullPointerException em ClosureMetaClass ao
+         montar requests PATCH). So um override de propriedade nao
+         resolve, porque o placeholder ${groovy.version} dentro do
+         groovy-bom importado ja foi interpolado com o valor do proprio
+         POM do Boot quando ele foi publicado - precisa fixar a versao
+         explicitamente aqui pra vencer o dependencyManagement herdado. -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.apache.groovy</groupId>
+                <artifactId>groovy</artifactId>
+                <version>4.0.22</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.groovy</groupId>
+                <artifactId>groovy-xml</artifactId>
+                <version>4.0.22</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.groovy</groupId>
+                <artifactId>groovy-json</artifactId>
+                <version>4.0.22</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -63,6 +92,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <version>5.5.6</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

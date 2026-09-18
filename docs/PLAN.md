@@ -53,10 +53,33 @@
 
 ## Fase 5 — Bloco: E2E
 
-- Setup Playwright.
-- Cenário 1: fluxo completo criado → entregue.
-- Cenário 2: fluxo com cancelamento antes do embarque.
-- Confirmação: os dois cenários rodam localmente e passam.
+> **Ajuste de escopo (decidido com o dono do domínio antes de
+> implementar):** REST Assured no lugar de Playwright. Hoje não
+> existe UI nenhuma — o sistema é só API REST, o frontend (React) é
+> backlog v2 e ainda não foi construído. Rodar Playwright sem página
+> pra abrir seria usar a ferramenta certa pro trabalho errado: ele
+> automatiza browser, e sem UI não testaria nada além do que uma
+> chamada HTTP direta já cobre, só com a sobrecarga de um browser
+> headless desnecessário. Playwright volta ao plano quando o frontend
+> existir de verdade — nesse momento os cenários de UI são adicionais
+> aos de API, não substitutos. Motivo completo e nota de stack
+> (REST Assured + Groovy 5 do Boot 4.1 vs Groovy 4 esperado) em
+> `docs/SPEC.md`.
+
+- Setup REST Assured (`io.rest-assured:rest-assured`), testes
+  `@SpringBootTest(webEnvironment = RANDOM_PORT)` contra o Postgres
+  real do docker-compose — sem mock nessa camada, é o ponto do E2E.
+- Cenário 1: fluxo completo criado → entregue (documentação,
+  pagamento parcial, embarque, pagamento de saldo, documentos
+  originais, entrega), validando o estado retornado em cada passo e
+  o `GET /historico` no final.
+- Cenário 2: fluxo com cancelamento antes do embarque, confirmando
+  409 em qualquer transição tentada depois de `CANCELADO`.
+- Cenário 3: pagamento-saldo fora de sequência via chamada HTTP real,
+  confirmando que o `GlobalExceptionHandler` devolve 409 na ponta da
+  API (não só testado no nível de Service).
+- Confirmação: os três cenários rodam localmente e passam, suíte
+  completa 2x (normal + banco recriado do zero).
 
 ## Fase 6 — CI
 

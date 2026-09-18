@@ -1,12 +1,82 @@
 # Status — TrackCargo
 
 ## Última atualização
-17/set/2026 — Lacuna da Fase 3/4 fechada: pagamento-parcial,
-pagamento-saldo e histórico (branch
-`feat/fase4-endpoints-pagamento-historico`, a partir de
-`feat/fase4-controller-dtos` — **PR #9 ainda não estava mergeado**
-quando esta branch foi criada, então ela parte do código do PR #9,
-não da main; reconferir a base quando #9 mergear)
+18/set/2026 — Fase 5 (E2E) implementada com REST Assured, branch
+`feat/fase5-e2e-restassured`
+
+## Onde paramos (Fase 5 — E2E)
+
+Ajuste de escopo decidido com o dono do domínio antes de começar:
+**REST Assured no lugar de Playwright**, porque hoje não existe UI
+nenhuma (só API REST) — Playwright automatiza browser, e sem página
+pra abrir ele não testaria nada além do que uma chamada HTTP direta
+já cobre. Fica reservado pra quando o frontend (React, backlog v2)
+existir de verdade. Documentado em `docs/PLAN.md` (Fase 5) e
+`docs/SPEC.md` (seção de decisões de design) antes de qualquer linha
+de código.
+
+`FluxoPedidoE2ETest` (`@SpringBootTest(webEnvironment = RANDOM_PORT)`,
+contra o Postgres real — nenhum mock nessa camada) com 3 cenários:
+1. `fluxoCompletoCriadoAteEntregue`: cria pedido, envia+aceita os 4
+   documentos do checklist, pagamento parcial, embarca, pagamento de
+   saldo, documentos originais, entrega — valida o `estado` retornado
+   em cada passo e confere `GET /historico` no final batendo com a
+   sequência completa em ordem.
+2. `cancelamentoAntesDoEmbarqueImpedeQualquerTransicaoDepois`: cria,
+   cancela em `CRIADO`, confirma 409 em qualquer transição tentada
+   depois.
+3. `pagamentoSaldoForaDeSequenciaRetorna409NaAPIReal`: pagamento-saldo
+   sem estar `EMBARCADO`, confirmando que o `GlobalExceptionHandler`
+   devolve 409 na ponta real da API (não só testado no nível de
+   Service, que já era coberto desde a Fase 4).
+
+**2 pegadinhas de stack encontradas com REST Assured 5.5.6 (nenhuma é
+bug do REST Assured, são dois efeitos colaterais específicos desta
+stack — detalhes técnicos completos no SPEC.md):**
+1. Ele exige Jackson 2/Gson/Johnzon/Yasson no classpath pra
+   serializar `.body(pojo)`/`.body(map)`; o projeto está em Jackson 3
+   e ele não reconhece — `IllegalStateException: Cannot serialize
+   object`. Contornado mandando o corpo como `String` (JSON literal
+   via text block), sem precisar de mais nenhuma dependência.
+2. `spring-boot-dependencies` força Groovy 5.0.8 (via import de
+   `groovy-bom`), mas REST Assured 5.5.x foi construído contra Groovy
+   4.0.22 — o MOP do Groovy 5 quebra dentro do REST Assured
+   (`NullPointerException` em `ClosureMetaClass` especificamente em
+   requests `PATCH`). Corrigido com `<dependencyManagement>` explícito
+   no `pom.xml` re-fixando `org.apache.groovy:*` em `4.0.22` — só um
+   override de propriedade não bastava porque o `groovy-bom`
+   importado já vem com a versão interpolada.
+
+`docs/SPEC.md` e `docs/PLAN.md` atualizados com a decisão de escopo,
+as duas pegadinhas de stack, os endpoints/cenários E2E na tabela de
+correlação, e a nota de que `@SpringBootTest`/`@LocalServerPort`
+continuam em `spring-boot-test` (não sofreram o split de
+`@DataJpaTest`/`@WebMvcTest`).
+
+## Resultado da suíte completa (mvn test) — 2 rodadas
+**45/45 verde nas duas rodadas** (6 `ChecklistServiceTest` + 3
+`PedidoRepositoryTest` + 10 `PedidoServiceTest` + 9
+`ChecklistControllerTest` + 14 `PedidoControllerTest` + 3 novos
+`FluxoPedidoE2ETest`):
+- Rodada 1: suíte completa normal.
+- Rodada 2: banco recriado do zero (`DROP DATABASE` + `CREATE
+  DATABASE`) antes, forçando o Flyway a reaplicar V1→V2→V3 —
+  equivalente a `docker compose down -v && up -d` limpo.
+
+Nota de ambiente (mantida de fases anteriores, confirmada de novo
+nesta sessão): `docker compose up` continua bloqueado pela política
+de rede do sandbox — pull de `postgres:16` retorna 403 no blob do
+registry, não é intermitente. Usei Postgres 16 nativo com as mesmas
+credenciais/porta do `application.yml`.
+
+## Estado de saída da Fase 5
+Fechada: `FluxoPedidoE2ETest` com os 3 cenários pedidos, suíte
+completa 45/45 em duas rodadas, `docs/SPEC.md`/`docs/PLAN.md`
+atualizados com a decisão de escopo e as pegadinhas de stack. PR
+aberto, aguardando revisão/merge. Não avanço pra Fase 6 sem
+confirmação.
+
+---
 
 ## Onde paramos (endpoints de pagamento + histórico)
 
