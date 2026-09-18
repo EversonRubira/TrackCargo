@@ -1,8 +1,54 @@
 # Status — TrackCargo
 
 ## Última atualização
-18/set/2026 — Backend de F02/F03 implementado (listagem, dados
-logísticos, PDF de status), branch `feat/f02-f03-endpoints-backend`
+18/set/2026 — Scaffold do frontend F02 (Vite + React + TypeScript +
+Tailwind v4 + React Router), branch `feat/f02-frontend-scaffold`
+
+## Onde paramos (scaffold do frontend F02)
+
+`frontend/` criado com `npm create vite@latest frontend -- --template
+react-ts`, irmão do backend Java. Sem polish visual fino ainda — o
+objetivo desta fase era ter as 3 telas consumindo a API real, não dado
+inventado.
+
+- **Stack**: Vite 8, React 19, TypeScript 6, Tailwind CSS v4 (via
+  plugin `@tailwindcss/vite` — a v4 não usa mais
+  `tailwind.config.js`/PostCSS, é `@import "tailwindcss";` +
+  `@theme { }` no CSS), React Router v8 (`react-router` puro — não
+  `react-router-dom`, que ficou pra trás na v7; `BrowserRouter` agora
+  sai do pacote principal).
+- **Cliente HTTP** (`src/api/client.ts`): fetch nativo, uma função por
+  endpoint existente (`listarPedidos`, `buscarPedido`, `criarPedido`,
+  `transicionar`, `confirmarPagamentoParcial/Saldo`,
+  `enviarDocumento/aceitarDocumento/reabrirDocumento`,
+  `buscarHistorico`, `atualizarLogistica`, `urlStatusPdf`). Base URL
+  via `VITE_API_BASE_URL` (default `http://localhost:8080`).
+- **Tipos** (`src/api/types.ts`): interfaces espelhando os DTOs Java
+  (`PedidoResponse`, `ChecklistDocumentoResponse`,
+  `PedidoTransicaoResponse`, `ErrorResponse` — conferido campo a campo
+  no `ErrorResponse.java` real, que é `erro/mensagem/estadoAtual/
+  estadoSolicitado`, não o que se poderia supor por convenção) e os 4
+  enums (`PedidoEstado`, `TipoDocumento`, `Incoterm`,
+  `FormaPagamento`), incluindo o mapa `TRANSICOES_MANUAIS` copiado do
+  `PedidoEstado` do backend pra habilitar só os botões de transição
+  válidos em cada estado.
+- **3 telas**: Lista (`/`, filtro por estado), Criar (`/pedidos/novo`,
+  formulário agrupado em Identificação/Descrição da
+  mercadoria/Condições comerciais), Detalhe (`/pedidos/:numeroPedido`,
+  dados + logística editável + checklist com enviar/aceitar/reabrir +
+  botões de transição dinâmicos por `TRANSICOES_MANUAIS` +
+  pagamento-parcial/saldo condicionais ao estado + link de PDF +
+  histórico). Sem mock — tudo vem da API.
+- **CORS**: `WebConfig` novo (`config/WebConfig.java`,
+  `WebMvcConfigurer` — sem Spring Security no projeto, então foi o
+  caminho mais simples) liberando `http://localhost:5173`.
+- **CI**: novo job `frontend` em `.github/workflows/ci.yml`, paralelo
+  ao `test` do Java — `npm ci && npm run build`
+  (`working-directory: frontend`, cache do `npm` via
+  `package-lock.json`).
+- `npm run build` (tsc -b + vite build) confirmado passando local antes
+  do PR. A evidência real desta fase é o CI verde no PR, não o build
+  local — sem ambiente de teste sempre disponível agora.
 
 ## Onde paramos (backend de F02/F03)
 
