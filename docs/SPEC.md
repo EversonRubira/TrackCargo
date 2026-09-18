@@ -318,6 +318,7 @@ contornam o mapa de transições do enum.
 |---|---|---|
 | GET | `/pedidos` | Lista pedidos (`PedidoResponse[]`, mesmo DTO do GET individual — sem projeção resumida própria, ver justificativa abaixo). Query param opcional `?estado=` filtra por `PedidoEstado` (ex: `?estado=EMBARCADO`); omitido, retorna todos |
 | GET | `/pedidos/{numeroPedido}/status.pdf` | Gera e devolve o PDF de status (F03) do pedido no estado atual. `Content-Type: application/pdf`. Sem autenticação, mesma decisão de escopo do resto da API nesta leva. 404 (`PEDIDO_NAO_ENCONTRADO`) se o pedido não existir |
+| PATCH | `/pedidos/{numeroPedido}/logistica` | Atualiza `ciaMaritima` e/ou `numeroContainer`. Body: `AtualizarLogisticaRequest` (os dois campos opcionais, cada um só é alterado se vier preenchido — `null`/ausente deixa o valor atual como está). `200` com `PedidoResponse` atualizado. 404 se o pedido não existir |
 
 **`GET /pedidos` reusa `PedidoResponse` sem criar um DTO de listagem
 resumido.** Cada linha da tela de lista (F02) só exibe um subconjunto
@@ -353,6 +354,39 @@ próprio) chama `PdfStatusService.gerar(pedido, historico)`
 diretamente — é o mesmo método que a futura automação de e-mail
 (backlog v2) vai chamar, sem passar por HTTP: o endpoint é uma forma
 de expor esse serviço pro navegador, não o único consumidor dele.
+
+**`PATCH /pedidos/{numeroPedido}/logistica` — por que é um endpoint
+separado, sem regra de transição de estado nenhuma:** diferente do
+resto do fluxo (documentação, pagamentos, embarque), `ciaMaritima` e
+`numeroContainer` não chegam num momento fixo do ciclo de vida. A
+companhia marítima é confirmada no booking; o número do container
+com lacre só existe depois, quando a carga é de fato alocada — é o
+BL que formaliza isso, e o BL pode sair em qualquer estado a partir
+de `DOCUMENTACAO_ENVIADA`. Não existe um "estado" pra essa
+informação chegar, só a necessidade de poder preenchê-la quando
+chegar — por isso não é um destino de `/transicionar` nem um gatilho
+de transição automática, é metadado que pode ser atualizado a
+qualquer momento do ciclo de vida (inclusive antes de `EMBARCADO`,
+se o booking já veio com essas informações).
+
+**Sem `PedidoOcorrencia` aqui.** O registro de ocorrências existe pra
+eventos que geram atraso/custo e precisam de motivo documentado
+(reabertura de documento, alteração de consignee pós-embarque) — são
+correções ou exceções ao fluxo esperado. Preencher companhia
+marítima e container quando a informação chega é o contrário disso:
+é progressão normal do dado logístico, não uma correção. Gravar
+ocorrência aqui trataria o caso comum como se fosse exceção.
+
+**Sem setter público — mesmo padrão de `aplicarConsignee`.** `Pedido`
+ganha um método pacote-privado (`aplicarDadosLogisticos(String
+ciaMaritima, String numeroContainer)`, cada parâmetro só aplicado se
+não-nulo) chamado só por `PedidoService`. Isso implica remover os
+setters públicos `setCiaMaritima`/`setNumeroContainer` que existem na
+entidade desde a Fase 1 — hoje o único caso remanescente de mutação
+pública em `Pedido`, uma inconsistência com o padrão adotado a partir
+da Fase 3 (`aplicarTransicao`, `aplicarConsignee`, ambos
+pacote-privados). Fica registrado como parte da implementação deste
+endpoint, não uma limpeza à parte.
 
 Toda resposta de erro segue corpo padrão:
 ```json
@@ -418,17 +452,13 @@ Submit: `POST /pedidos` com o corpo montado no formato aninhado que
 campos soltos). Sucesso (`201`) navega pra `/pedidos/{numeroPedido}`
 (o `numeroPedido` retornado no `PedidoResponse` da resposta).
 
-**Gap conhecido, sem endpoint ainda:** `ciaMaritima` e
-`numeroContainer` existem no schema e em `PedidoResponse`, mas não
-há nenhum endpoint (nem em `CriarPedidoRequest`, nem em nenhum PATCH)
-pra defini-los — nem F01 nem esta spec de F02 criam um. Fazem sentido
-como dados que só existem depois da reserva de espaço no navio,
-tipicamente depois da criação do pedido, mas isso é uma lacuna real
-de API, não uma escolha de UI: o formulário de criação não os inclui
-porque não têm onde ir, e a tela de detalhe (abaixo) só os exibe
-como texto (read-only) quando presentes — sem UI de edição, porque
-não haveria o que chamar. Registrar como pendência pra uma spec
-futura, não resolver aqui.
+`ciaMaritima` e `numeroContainer` **não fazem parte deste
+formulário** — não têm um momento fixo do ciclo de vida (companhia
+sai no booking, container só depois da carga alocada), então não
+faz sentido pedi-los na criação do pedido. Preenchidos depois, na
+tela de detalhe, via `PATCH /pedidos/{numeroPedido}/logistica` (ver
+seção de endpoints acima) — não pelo formulário de criação nem por
+`CriarPedidoRequest`.
 
 ### Detalhe do pedido
 
@@ -446,6 +476,7 @@ ao montar a tela. Ações e o endpoint que cada uma dispara:
 | Cancelar | **Não é endpoint separado** — é `PATCH /pedidos/{numero}/transicionar` com `{ "novoEstado": "CANCELADO" }`, já que `CANCELADO` é só mais um destino válido no mapa de transições do enum. A UI pode dar um botão dedicado "Cancelar pedido", mas por baixo é a mesma chamada de transicionar |
 | Confirmar pagamento parcial | `POST /pedidos/{numero}/pagamento-parcial` |
 | Confirmar pagamento de saldo | `POST /pedidos/{numero}/pagamento-saldo` |
+| Preencher/atualizar companhia marítima e/ou container | `PATCH /pedidos/{numero}/logistica` — sem regra de estado, disponível em qualquer momento do ciclo de vida (ver seção de endpoints acima) |
 | Gerar PDF de status | `GET /pedidos/{numero}/status.pdf` — abre em nova aba (`target="_blank"`) ou dispara download; não é uma chamada `fetch` que precise de tratamento de JSON, é navegação direta pra uma URL que devolve `application/pdf` |
 
 Toda ação que muda estado (enviar/aceitar/reabrir/transicionar/
@@ -453,6 +484,9 @@ pagamentos) recarrega `GET /pedidos/{numero}` e `GET
 /pedidos/{numero}/historico` depois de um `2xx` — não há
 atualização otimista de estado no cliente, o backend é a fonte da
 verdade e as chamadas são baratas o suficiente pra um único operador.
+Atualizar dados logísticos não muda estado (não gera transição), mas
+recarrega `GET /pedidos/{numero}` do mesmo jeito — é a única fonte
+dos valores atualizados de `ciaMaritima`/`numeroContainer`.
 
 ## Tabela de correlação — critério de aceitação × teste
 
@@ -485,6 +519,7 @@ verdade e as chamadas são baratas o suficiente pra um único operador.
 | Pagamento-saldo fora de sequência retorna 409 na API real (não só no nível de Service) | E2E | `FluxoPedidoE2ETest.pagamentoSaldoForaDeSequenciaRetorna409NaAPIReal` |
 | `GET /pedidos` lista todos os pedidos sem filtro; `?estado=` filtra corretamente | Unitário + API | **Planejado** (F02, ainda não implementado) — `PedidoServiceTest.listarSemFiltroRetornaTodosOsPedidos` + `listarComFiltroDeEstadoRetornaSoOsQueBatem` + `PedidoControllerTest.listarRetorna200ComTodosOsPedidos` + `listarComFiltroEstadoRetorna200SoComOsFiltrados` |
 | `GET /pedidos/{numero}/status.pdf` retorna 200 com `Content-Type: application/pdf`; pedido inexistente retorna 404 | API | **Planejado** (F03, ainda não implementado) — `PedidoControllerTest.gerarPdfStatusRetorna200ComContentTypePdf` + `gerarPdfStatusDePedidoInexistenteRetorna404` |
+| `PATCH /pedidos/{numero}/logistica` atualiza só `ciaMaritima`, só `numeroContainer`, ou os dois juntos; não gera `PedidoOcorrencia`; sem regra de estado (funciona em qualquer estado) | API | **Planejado** (ainda não implementado) — `PedidoControllerTest.atualizarLogisticaComSoCiaMaritimaAtualizaSoEsseCampo` + `atualizarLogisticaComSoNumeroContainerAtualizaSoEsseCampo` + `atualizarLogisticaComOsDoisCamposAtualizaAmbos` |
 
 ## Fora de escopo desta Spec
 
