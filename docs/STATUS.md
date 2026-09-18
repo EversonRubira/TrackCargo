@@ -1,8 +1,54 @@
 # Status — TrackCargo
 
 ## Última atualização
-18/set/2026 — Fase 5 (E2E) implementada com REST Assured, branch
-`feat/fase5-e2e-restassured`
+18/set/2026 — Fase 6 (CI) implementada e confirmada rodando no
+GitHub Actions, branch `feat/fase6-ci-github-actions`
+
+## Onde paramos (Fase 6 — CI, última fase do PLAN.md)
+
+`.github/workflows/ci.yml`, disparado em `push` e `pull_request` pra
+`main`. Job único (`ubuntu-latest`) com Postgres 16 como serviço
+(mesmas credenciais do `docker-compose.yml`, `health-cmd pg_isready`),
+Java 21 via `actions/setup-java@v4` (Temurin, cache maven nativo), e
+`mvn --batch-mode --no-transfer-progress test` — a suíte completa
+(unitário + API + E2E com REST Assured) contra esse Postgres real, sem
+mock na camada de banco. Confirmado que não há `testFailureIgnore`/
+`skipTests`/`maven.test.skip` no `pom.xml` — comportamento padrão do
+Maven/Surefire de falhar o build em qualquer teste quebrado se
+mantém.
+
+**Evidência real (não só `mvn test` local)**: o PR #14 disparou o
+workflow de verdade — [run
+#35330808183](https://github.com/EversonRubira/TrackCargo/actions/runs/35330808183),
+`status: completed`, `conclusion: success`, todos os steps verdes
+(subida do container do Postgres incluída). Log do job confirma:
+`Tests run: 45, Failures: 0, Errors: 0, Skipped: 0` — `BUILD SUCCESS`,
+27.8s de build. As linhas `role "root" does not exist` no log do
+container Postgres são as tentativas de conexão do healthcheck antes
+do banco aceitar conexões (esperado, não é erro); a linha `duplicate
+key value violates unique constraint` é o próprio
+`PedidoRepositoryTest.naoDevePermitirDoisPedidosComMesmoNumero`
+validando a constraint de unicidade — comportamento esperado do
+teste, não uma falha.
+
+No pull do `postgres:16` a política de rede do GitHub Actions não
+tem a mesma restrição que bloqueava o sandbox local nas fases
+anteriores — o container subiu normalmente como serviço nativo do
+runner, sem precisar do `docker-compose.yml` em si.
+
+Fora de escopo (não pedido em nenhuma fase até agora): badge no
+README, deploy, build de imagem Docker, publicação de artefato.
+
+## Estado de saída da Fase 6 — e do PLAN.md
+Fechada: workflow criado, PR aberto, CI rodou de verdade no PR e
+passou (45/45). Esta é a última fase do PLAN.md — as 6 fases da F01
+(Scaffold → Entity/Migration → Repository → Service → Controller →
+E2E → CI) estão implementadas e com suíte verde. PR aberto, aguardando
+revisão/merge. Não avanço além da Fase 6 sem confirmação — não há
+próxima fase no PLAN.md além desta; qualquer trabalho futuro (módulo
+de IA, backlog v2) exigiria reabrir o PRD/SPEC antes.
+
+---
 
 ## Onde paramos (Fase 5 — E2E)
 
