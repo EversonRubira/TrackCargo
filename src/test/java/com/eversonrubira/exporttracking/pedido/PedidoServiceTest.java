@@ -36,6 +36,8 @@ class PedidoServiceTest {
     private PedidoTransicaoRepository transicaoRepository;
     @Mock
     private PedidoOcorrenciaRepository ocorrenciaRepository;
+    @Mock
+    private PedidoSequenciaService pedidoSequenciaService;
 
     @InjectMocks
     private PedidoService pedidoService;
@@ -74,6 +76,7 @@ class PedidoServiceTest {
         assertThat(salvo.getEstado()).isEqualTo(PedidoEstado.CRIADO);
 
         verify(checklistRepository, times(4)).save(any(ChecklistDocumento.class));
+        verify(pedidoSequenciaService).reservarSeCorresponder("PO-0001");
 
         ArgumentCaptor<PedidoTransicao> transicaoCaptor = ArgumentCaptor.forClass(PedidoTransicao.class);
         verify(transicaoRepository).save(transicaoCaptor.capture());

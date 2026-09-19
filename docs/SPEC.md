@@ -138,6 +138,10 @@ F03 abaixo.
   nativo cobre tudo que as 3 telas precisam (GET/POST/PATCH com JSON)
   sem justificar a dependência extra do axios — mesmo raciocínio já
   aplicado ao backend (não adicionar biblioteca sem fricção real).
+  **Vitest** entrou como devDependency (numeração automática) só pro
+  teste puro de encode/decode de URL do bug de navegação — sem jsdom
+  nem Testing Library, não precisou renderizar componente nenhum pra
+  provar a correção.
 
 ## Modelo de dados
 
@@ -213,6 +217,18 @@ atraso/custo extra e precisam de motivo documentado — cobre hoje
 reabertura de documento já aceito e alteração de consignee
 pós-embarque; não é histórico de todas as mudanças do pedido (isso
 continua em `pedido_transicao` para estado).
+
+### `pedido_sequencia` (V4)
+
+| Campo | Tipo | Constraint |
+|---|---|---|
+| ano | INT | PK |
+| proximo_numero | INT | NOT NULL |
+
+Uma linha por ano, criada sob demanda (na primeira reserva de verdade
+daquele ano, não antes). Contador dedicado pra sugestão/reserva
+automática de `numero_pedido` — ver seção "Numeração automática do
+pedido" abaixo.
 
 ### `pedido_transicao`
 
@@ -321,6 +337,7 @@ contornam o mapa de transições do enum.
 | GET | `/pedidos` | Lista pedidos (`PedidoResponse[]`, mesmo DTO do GET individual — sem projeção resumida própria, ver justificativa abaixo). Query param opcional `?estado=` filtra por `PedidoEstado` (ex: `?estado=EMBARCADO`); omitido, retorna todos |
 | GET | `/pedidos/{numeroPedido}/status.pdf` | Gera e devolve o PDF de status (F03) do pedido no estado atual. `Content-Type: application/pdf`. Sem autenticação, mesma decisão de escopo do resto da API nesta leva. 404 (`PEDIDO_NAO_ENCONTRADO`) se o pedido não existir |
 | PATCH | `/pedidos/{numeroPedido}/logistica` | Atualiza `ciaMaritima` e/ou `numeroContainer`. Body: `AtualizarLogisticaRequest` (os dois campos opcionais, cada um só é alterado se vier preenchido — `null`/ausente deixa o valor atual como está). `200` com `PedidoResponse` atualizado. 404 se o pedido não existir |
+| GET | `/pedidos/proximo-numero` | Devolve o próximo `numeroPedido` sugerido pro ano corrente (`ProximoNumeroResponse.numeroPedidoSugerido`, formato `NNNNN/AAAA`). Só espia o contador — não reserva, não incrementa nada (ver "Numeração automática do pedido" abaixo) |
 
 **`GET /pedidos` reusa `PedidoResponse` sem criar um DTO de listagem
 resumido.** Cada linha da tela de lista (F02) só exibe um subconjunto
@@ -411,6 +428,82 @@ da Fase 3 (`aplicarTransicao`, `aplicarConsignee`, ambos
 pacote-privados). Fica registrado como parte da implementação deste
 endpoint, não uma limpeza à parte.
 
+**Numeração automática do pedido (`GET /pedidos/proximo-numero`).**
+`numeroPedido` segue opcionalmente o padrão `NNNNN/AAAA` (5 dígitos com
+zero à esquerda, ano de 4 dígitos) — sugerido automaticamente pelo
+frontend na tela "Criar pedido" (campo continua editável, usuário pode
+digitar qualquer outro valor manualmente).
+
+- **Tabela dedicada (`pedido_sequencia`, V4), não uma coluna calculada
+  em cima de `MAX(numero_pedido)`.** Ainda que hoje o sistema seja de
+  usuário único (sem concorrência real observada), `numero_pedido` é a
+  chave de negócio do domínio inteiro (rota principal da API, chave
+  única no banco) — um contador que pode colidir ou pular número não é
+  um detalhe cosmético aqui, é o tipo de robustez que vale desde o
+  início, não uma otimização prematura.
+- **`GET /pedidos/proximo-numero` só espia o contador (`SELECT`), nunca
+  reserva nem incrementa.** Se o usuário abre o formulário de criação e
+  desiste sem enviar, nenhum número fica pulado.
+- **O incremento de verdade só acontece dentro de `PedidoService.criar()`**,
+  via `PedidoSequenciaService.reservarSeCorresponder(numeroPedido)`,
+  atômico com a criação do pedido (mesma transação — se a criação falhar,
+  o incremento também é desfeito). A lógica: extrai `numero`/`ano` do
+  `numeroPedido` recém-criado (regex `NNNNN/AAAA`); se não bater no
+  padrão (número manual, formato livre), não mexe em nada; se bater,
+  faz um `UPDATE pedido_sequencia SET proximo_numero = proximo_numero + 1
+  WHERE ano = :ano AND proximo_numero = :numero` — um CAS (compare-and-swap)
+  atômico que só avança o contador se o valor atual for exatamente o
+  número sendo usado. Consequência direta, sem regra extra nenhuma:
+  **se o usuário editar a sugestão pra outro valor, o contador não
+  avança** (o `UPDATE` não encontra a linha com aquele `proximo_numero`
+  e afeta zero registros); só avança quando o número sugerido é de fato
+  o que foi criado.
+- **Reset por ano é automático, não um job/cron.** A chave da tabela é
+  o próprio `ano` extraído do `numeroPedido` (não necessariamente "o
+  ano corrente do servidor") — cada ano tem sua própria linha/contador,
+  criada sob demanda (`INSERT ... ON CONFLICT (ano) DO NOTHING`) na
+  primeira reserva daquele ano. Isso também cobre virada de ano sem
+  código dedicado: `sugerirProximoNumero()` sempre calcula pro
+  `Year.now()`, então em 1º/jan a sugestão já volta a ser `00001/<ano
+  novo>` porque não existe linha pra esse ano ainda.
+- **Concorrência:** o `UPDATE` com `WHERE proximo_numero = :numero` é a
+  proteção — duas transações tentando reservar o mesmo número
+  concorrentemente serializam no lock de linha do Postgres; a que
+  perder a corrida simplesmente não encontra mais o valor esperado
+  (já foi incrementado pela outra) e não afeta nenhuma linha, sem
+  exception, sem retry manual. Coberto por
+  `PedidoSequenciaServiceTest.duasReservasSimultaneasParaOMesmoNumeroSoUmaAvancaOContador`.
+
+**Bug de navegação corrigido junto (pré-existente, não introduzido por
+esta feature, mas que a numeração automática tornaria trivial de
+disparar):** `numeroPedido` contendo `/` (exatamente o padrão
+`NNNNN/AAAA` acima) quebrava a navegação do frontend — `Link
+to={`/pedidos/${numeroPedido}`}` e `navigate(`/pedidos/${numeroPedido}`)`
+montavam a URL sem codificar a barra, então `/pedidos/00001/2026` virava
+dois segmentos de rota (`numeroPedido` + um segmento extra) em vez de
+um só, e a rota `/pedidos/:numeroPedido` nunca casava. Corrigido em
+`ListaPedidos.tsx` (link da lista) e `CriarPedido.tsx` (redirect
+pós-criação) com `encodeURIComponent(numeroPedido)` — `client.ts` já
+fazia isso em toda chamada de API (`buscarPedido`, `transicionar` etc.),
+só os dois pontos de navegação client-side (React Router) estavam sem.
+
+Só o frontend não bastava: o Tomcat embarcado rejeita por padrão uma
+barra codificada (`%2F`) na URL com `400 Bad Request` (proteção
+genérica contra path traversal, sem relação com este domínio — aqui
+`numeroPedido` nunca vira caminho de arquivo). Confirmado testando
+`GET /pedidos/00001%2F2026` manualmente antes de mexer no backend: sem
+o ajuste, a chamada de API que o frontend já corrigido faria também
+quebraria, só que no servidor em vez do router do cliente.
+`WebConfig` ganhou um `WebServerFactoryCustomizer<TomcatServletWebServerFactory>`
+que seta `encodedSolidusHandling=passthrough` no connector: o Tomcat
+repassa a URL codificada pro dispatcher do Spring sem decodificar
+antes, e o Spring casa a rota pelos segmentos originais (`%2F` continua
+sendo "um caractere dentro do segmento", não um separador) — só decodifica
+o valor de cada `@PathVariable` depois de já ter casado o segmento, daí
+`numeroPedido` chega em `"00001/2026"` inteiro no controller. Confirmado
+manualmente com `curl` (`GET`, incluindo a rota aninhada `/historico`)
+antes e depois do ajuste — 400 sem o customizer, 200 com ele.
+
 Toda resposta de erro segue corpo padrão:
 ```json
 { "erro": "TRANSICAO_INVALIDA", "mensagem": "...", "estadoAtual": "...", "estadoSolicitado": "..." }
@@ -470,10 +563,17 @@ Agrupamento visual (PRD, seção F02) e o campo do DTO correspondente:
 | Logística | `paisDestino`, `portoOrigem`, `portoDestino` |
 | Condições comerciais | `condicoesComerciais.precoAcordado`, `condicoesComerciais.moeda`, `condicoesComerciais.incoterm`, `condicoesComerciais.formaPagamento`, `condicoesComerciais.percentualParcial` |
 
+Ao montar a tela, chama `GET /pedidos/proximo-numero` e pré-preenche
+`numeroPedido` com a sugestão (`NNNNN/AAAA` do ano corrente) — campo
+continua editável normalmente, falha na chamada não impede o cadastro
+(usuário preenche manualmente).
+
 Submit: `POST /pedidos` com o corpo montado no formato aninhado que
 `CriarPedidoRequest` já exige (objeto `condicoesComerciais`, não os 5
 campos soltos). Sucesso (`201`) navega pra `/pedidos/{numeroPedido}`
-(o `numeroPedido` retornado no `PedidoResponse` da resposta).
+(o `numeroPedido` retornado no `PedidoResponse` da resposta,
+codificado com `encodeURIComponent` — ver "Numeração automática do
+pedido" acima pra por quê).
 
 `ciaMaritima` e `numeroContainer` **não fazem parte deste
 formulário** — não têm um momento fixo do ciclo de vida (companhia
@@ -544,6 +644,10 @@ dos valores atualizados de `ciaMaritima`/`numeroContainer`.
 | `GET /pedidos/{numero}/status.pdf` retorna 200 com `Content-Type: application/pdf`; pedido inexistente retorna 404 | API | `PedidoControllerTest.gerarPdfStatusRetorna200ComContentTypePdf` + `gerarPdfStatusDePedidoInexistenteRetorna404` |
 | `PATCH /pedidos/{numero}/logistica` atualiza só `ciaMaritima`, só `numeroContainer`, ou os dois juntos; não gera `PedidoOcorrencia`; sem regra de estado (funciona em qualquer estado); pedido inexistente retorna 404 | Unitário + API | `PedidoServiceTest.atualizarDadosLogisticosComOsDoisCamposAtualizaAmbos` + `atualizarDadosLogisticosComSoCiaMaritimaNaoMexeNoContainer` + `atualizarDadosLogisticosComSoContainerNaoMexeNaCiaMaritima` + `PedidoControllerTest.atualizarLogisticaComSoCiaMaritimaAtualizaSoEsseCampo` + `atualizarLogisticaComSoNumeroContainerAtualizaSoEsseCampo` + `atualizarLogisticaComOsDoisCamposAtualizaAmbos` + `atualizarLogisticaDePedidoInexistenteRetorna404` |
 | Listagem e atualização de dados logísticos no meio do fluxo real; PDF de status gerado de verdade (OpenPDF) no final do fluxo completo | E2E | `FluxoPedidoE2ETest.fluxoCompletoCriadoAteEntregue` (logística + `?estado=` + `status.pdf`) + `listarSemFiltroIncluiPedidoRecemCriadoEComFiltroDeEstadoSoOsQueBatem` |
+| `GET /pedidos/proximo-numero` sugere `00001/<ano>` sem histórico e não cria/altera o contador | API + Integração | `PedidoControllerTest.proximoNumeroRetorna200ComSugestaoDoService` + `PedidoSequenciaServiceTest.sugerirProximoNumeroSemHistoricoRetorna00001ParaAnoAtual` + `sugerirProximoNumeroApenasEspiaNaoCriaNemAlteraOContador` |
+| `reservarSeCorresponder()` só avança o contador quando o número criado bate com o sugerido; número manual ou fora de sequência não avança | Unitário + Integração | `PedidoServiceTest.criarGeraChecklistZeradoETransicaoInicial` (verifica a chamada) + `PedidoSequenciaServiceTest.reservarSeCorresponderAvancaContadorQuandoNumeroBateComOSugerido` + `reservarSeCorresponderComNumeroManualForaDoPadraoNaoCriaSequencia` + `reservarSeCorresponderComNumeroDiferenteDoAtualNaoAvancaOContador` |
+| Sequência reseta por ano (anos independentes); duas reservas concorrentes pro mesmo número não colidem (só uma avança) | Integração (Postgres real) | `PedidoSequenciaServiceTest.sequenciaResetaPorAnoDoisAnosAvancamIndependentemente` + `duasReservasSimultaneasParaOMesmoNumeroSoUmaAvancaOContador` |
+| Número de pedido com barra (`NNNNN/AAAA`) navega corretamente (link da lista, redirect pós-criação, chamada de API) | Frontend (Vitest) + manual (`curl`) | `navegacaoNumeroPedido.test.ts` (encode/decode de um único segmento de rota) — confirmado manualmente com `curl` que `GET /pedidos/00001%2F2026` (e `/historico`) retorna 200 após o `WebConfig`/Tomcat `encodedSolidusHandling=passthrough` |
 
 ## Fora de escopo desta Spec
 
