@@ -1,6 +1,6 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
-import { ApiError, criarPedido } from '../api/client'
+import { ApiError, buscarProximoNumeroSugerido, criarPedido } from '../api/client'
 import { FORMAS_PAGAMENTO, INCOTERMS, type CriarPedidoRequest } from '../api/types'
 
 const ESTADO_INICIAL: CriarPedidoRequest = {
@@ -28,6 +28,14 @@ export default function CriarPedido() {
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
+  useEffect(() => {
+    buscarProximoNumeroSugerido()
+      .then(({ numeroPedidoSugerido }) => campo('numeroPedido', numeroPedidoSugerido))
+      .catch(() => {
+        // Falha na sugestao nao impede o cadastro - usuario preenche manualmente.
+      })
+  }, [])
+
   function campo<K extends keyof CriarPedidoRequest>(chave: K, valor: CriarPedidoRequest[K]) {
     setForm((atual) => ({ ...atual, [chave]: valor }))
   }
@@ -48,7 +56,7 @@ export default function CriarPedido() {
     setErro(null)
     try {
       const pedido = await criarPedido(form)
-      navigate(`/pedidos/${pedido.numeroPedido}`)
+      navigate(`/pedidos/${encodeURIComponent(pedido.numeroPedido)}`)
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : 'Falha ao criar pedido.')
     } finally {

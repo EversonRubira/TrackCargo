@@ -1,8 +1,114 @@
 # Status — TrackCargo
 
 ## Última atualização
-18/set/2026 — Ajuste de CORS pra permitir teste via GitHub Codespaces,
-branch `fix/cors-codespaces`
+19/set/2026 — Numeração automática (sugerida) do pedido +
+correção do bug de navegação com número contendo barra
+
+## Numeração automática (sugerida) do número do pedido
+
+Nova feature: `numeroPedido` pode seguir o padrão `NNNNN/AAAA` (5
+dígitos com zero à esquerda, ano de 4 dígitos), sugerido automaticamente
+na tela "Criar pedido" — campo continua editável.
+
+**Backend:**
+- `V4__pedido_sequencia.sql` — tabela `pedido_sequencia(ano INT PK,
+  proximo_numero INT NOT NULL)`, uma linha por ano, criada sob demanda.
+- `PedidoSequenciaService` novo: `sugerirProximoNumero()` só espia o
+  contador (`SELECT`, nunca cria/incrementa) — usado por `GET
+  /pedidos/proximo-numero` (endpoint novo). `reservarSeCorresponder(numeroPedido)`
+  é chamado dentro de `PedidoService.criar()` (mesma transação) e faz
+  um CAS atômico (`UPDATE ... WHERE ano = :ano AND proximo_numero =
+  :numero`): só avança o contador se o número criado bater exatamente
+  com o valor atual da sequência daquele ano. Efeito: número editado
+  manualmente pelo usuário não mexe no contador; abandonar o formulário
+  sem criar não pula número; duas criações concorrentes pro mesmo
+  número não colidem (a que perder a corrida não afeta linha nenhuma,
+  sem exception).
+- `PedidoSequenciaRepository` (JPA, queries nativas):
+  `buscarProximoNumero`, `garantirAno` (`INSERT ... ON CONFLICT DO
+  NOTHING`), `incrementarSeCorresponder` (o `UPDATE` do CAS).
+- `PedidoController` ganhou `GET /pedidos/proximo-numero` →
+  `ProximoNumeroResponse(numeroPedidoSugerido)`.
+
+**Frontend:**
+- `CriarPedido.tsx`: `useEffect` no mount chama
+  `buscarProximoNumeroSugerido()` (novo em `client.ts`) e pré-preenche
+  `numeroPedido` — falha na chamada não impede o cadastro manual.
+
+**Bug de navegação corrigido junto (pré-existente, exposto de vez pela
+nova feature — não fazia sentido gerar automaticamente um número que
+quebra a própria aplicação):** `numeroPedido` com barra virava dois
+segmentos de rota em vez de um. Dois pontos client-side sem
+`encodeURIComponent` (`client.ts` já fazia isso em toda chamada de API,
+só a navegação React Router estava faltando): `ListaPedidos.tsx` (link
+da lista) e `CriarPedido.tsx` (redirect pós-criação). **Isso sozinho
+não bastava** — confirmado testando manualmente com `curl` que o
+Tomcat embarcado rejeita `%2F` na URL com 400 por padrão. `WebConfig`
+ganhou um `WebServerFactoryCustomizer<TomcatServletWebServerFactory>`
+setando `encodedSolidusHandling=passthrough` no connector — Tomcat
+repassa a URL codificada pro Spring sem decodificar antes do roteamento,
+Spring casa a rota pelos segmentos originais e só decodifica o valor de
+cada `@PathVariable` depois. Confirmado com `curl` antes/depois (400 →
+200) em `GET /pedidos/00001%2F2026` e `.../historico`.
+
+**Testes novos:**
+- `PedidoSequenciaServiceTest` (7, integração contra Postgres real):
+  sugestão sem histórico, sugestão não altera contador, reserva avança
+  quando bate com o sugerido, número manual fora do padrão não cria
+  sequência, número diferente do atual não avança, reset por ano
+  (dois anos simulados avançando independentemente), duas reservas
+  concorrentes pro mesmo número (`ExecutorService` + `CountDownLatch`)
+  só uma avança o contador.
+- `PedidoServiceTest`: `criarGeraChecklistZeradoETransicaoInicial`
+  ganhou a verificação de que `criar()` chama
+  `pedidoSequenciaService.reservarSeCorresponder(...)`.
+- `PedidoControllerTest` (+1): `proximoNumeroRetorna200ComSugestaoDoService`.
+- Frontend: `navegacaoNumeroPedido.test.ts` (Vitest, novo — primeiro
+  teste do frontend, `npm run test`) prova o encode/decode de um único
+  segmento de rota pra número com barra, sem precisar de jsdom/Testing
+  Library. CI do frontend ganhou o passo `npm run test` antes do build.
+
+`docs/SPEC.md` atualizado: tabela `pedido_sequencia` (V4), endpoint
+novo, seção "Numeração automática do pedido" completa (design do CAS,
+reset por ano, concorrência), nota do bug de navegação + fix de duas
+camadas (frontend + Tomcat), seção "Criar pedido" (F02) menciona o
+pré-preenchimento, tabela de correlação critério×teste com as linhas
+novas.
+
+## Resultado da suíte completa — 2 rodadas
+**Backend (`mvn test`): 67/67 verde nas duas rodadas** (6
+`ChecklistServiceTest` + 15 `PedidoServiceTest` + 3
+`PedidoRepositoryTest` + 9 `ChecklistControllerTest` + 23
+`PedidoControllerTest` + 7 `PedidoSequenciaServiceTest` (novo) + 4
+`FluxoPedidoE2ETest`):
+- Rodada 1: suíte completa normal.
+- Rodada 2: banco recriado do zero (`DROP DATABASE` + `CREATE
+  DATABASE`), forçando o Flyway a reaplicar V1→V4.
+
+**Frontend (`npm run lint` + `npm run build` + `npm run test`): verde
+nas duas rodadas** (2 testes novos em `navegacaoNumeroPedido.test.ts`).
+
+Nota de ambiente: Postgres 16 nativo usado (mesmas credenciais/porta do
+`application.yml`) — `docker compose` não testado nesta sessão, mesma
+restrição de rede de sessões anteriores.
+
+Validação manual extra (fora da suíte automatizada, via `curl` com o
+backend de pé): `POST /pedidos` com `numeroPedido: "00001/2026"` →
+`GET /pedidos/proximo-numero` confirmou avanço pra `00002/2026`;
+`GET /pedidos/00001%2F2026` e `.../historico` confirmados 200 só depois
+do ajuste do `WebConfig` (400 antes).
+
+## Estado de saída (numeração automática + fix de navegação)
+Fechado: endpoint novo, `PedidoSequenciaService` com CAS atômico
+testado (incremento, reset por ano, concorrência), frontend
+pré-preenchendo o campo, bug de navegação corrigido nas duas camadas
+(frontend + Tomcat), `docs/SPEC.md`/`docs/STATUS.md` atualizados,
+suíte completa (backend + frontend) verde em duas rodadas. PR aberto,
+aguardando revisão/merge — não faço merge sozinho.
+
+---
+
+## Ajuste de CORS pra Codespaces
 
 ## Ajuste de CORS pra Codespaces
 

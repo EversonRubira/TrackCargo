@@ -22,20 +22,24 @@ public class PedidoService {
     private final ChecklistDocumentoRepository checklistRepository;
     private final PedidoTransicaoRepository transicaoRepository;
     private final PedidoOcorrenciaRepository ocorrenciaRepository;
+    private final PedidoSequenciaService pedidoSequenciaService;
 
     public PedidoService(PedidoRepository pedidoRepository,
                           ChecklistDocumentoRepository checklistRepository,
                           PedidoTransicaoRepository transicaoRepository,
-                          PedidoOcorrenciaRepository ocorrenciaRepository) {
+                          PedidoOcorrenciaRepository ocorrenciaRepository,
+                          PedidoSequenciaService pedidoSequenciaService) {
         this.pedidoRepository = pedidoRepository;
         this.checklistRepository = checklistRepository;
         this.transicaoRepository = transicaoRepository;
         this.ocorrenciaRepository = ocorrenciaRepository;
+        this.pedidoSequenciaService = pedidoSequenciaService;
     }
 
     @Transactional
     public Pedido criar(Pedido pedido) {
         Pedido salvo = pedidoRepository.save(pedido);
+        pedidoSequenciaService.reservarSeCorresponder(salvo.getNumeroPedido());
         for (TipoDocumento tipo : CHECKLIST_INICIAL) {
             checklistRepository.save(new ChecklistDocumento(salvo, tipo));
         }

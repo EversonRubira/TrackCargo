@@ -5,6 +5,7 @@ import com.eversonrubira.exporttracking.pedido.FormaPagamento;
 import com.eversonrubira.exporttracking.pedido.Incoterm;
 import com.eversonrubira.exporttracking.pedido.Pedido;
 import com.eversonrubira.exporttracking.pedido.PedidoEstado;
+import com.eversonrubira.exporttracking.pedido.PedidoSequenciaService;
 import com.eversonrubira.exporttracking.pedido.PedidoService;
 import com.eversonrubira.exporttracking.pedido.PedidoTransicao;
 import com.eversonrubira.exporttracking.pedido.TipoDocumento;
@@ -55,6 +56,9 @@ class PedidoControllerTest {
     @MockitoBean
     private PdfStatusService pdfStatusService;
 
+    @MockitoBean
+    private PedidoSequenciaService pedidoSequenciaService;
+
     private Pedido pedido;
 
     @BeforeEach
@@ -99,6 +103,15 @@ class PedidoControllerTest {
                 .andExpect(jsonPath("$.numeroPedido").value("PO-0001"))
                 .andExpect(jsonPath("$.estado").value("CRIADO"))
                 .andExpect(jsonPath("$.checklist").isArray());
+    }
+
+    @Test
+    void proximoNumeroRetorna200ComSugestaoDoService() throws Exception {
+        when(pedidoSequenciaService.sugerirProximoNumero()).thenReturn("00007/2026");
+
+        mockMvc.perform(get("/pedidos/proximo-numero"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.numeroPedidoSugerido").value("00007/2026"));
     }
 
     @Test
