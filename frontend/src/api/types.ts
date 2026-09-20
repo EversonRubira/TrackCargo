@@ -125,8 +125,6 @@ export interface ReabrirDocumentoRequest {
 
 export interface ChecklistDocumentoResponse {
   tipoDocumento: TipoDocumento
-  enviado: boolean
-  aceito: boolean
   enviadoEm: string | null
   aceitoEm: string | null
   reabertoEm: string | null
