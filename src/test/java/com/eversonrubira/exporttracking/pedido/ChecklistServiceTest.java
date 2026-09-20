@@ -3,17 +3,21 @@ package com.eversonrubira.exporttracking.pedido;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 // Unitario puro: PedidoRepository/ChecklistDocumentoRepository ja sao
@@ -128,5 +132,88 @@ class ChecklistServiceTest {
 
         assertThatExceptionOfType(com.eversonrubira.exporttracking.pedido.exception.DocumentoNaoAceitoException.class)
                 .isThrownBy(() -> checklistService.reabrirAposAceite(invoice, "Tentativa invalida"));
+    }
+
+    @Test
+    void recusarDocumentoEnviadoVoltaParaPendenteEGravaOcorrencia() {
+        checklistService.enviar(invoice);
+        LocalDateTime envioOriginal = invoice.getEnviadoEm();
+
+        checklistService.recusar(invoice, "Invoice com valor divergente do contrato");
+
+        assertThat(invoice.getEnviadoEm()).isNull();
+
+        ArgumentCaptor<PedidoOcorrencia> captor = ArgumentCaptor.forClass(PedidoOcorrencia.class);
+        verify(ocorrenciaRepository).save(captor.capture());
+        PedidoOcorrencia ocorrencia = captor.getValue();
+        assertThat(ocorrencia.getTipo()).isEqualTo(TipoOcorrencia.RECUSA_DOCUMENTO);
+        assertThat(ocorrencia.getTipoDocumento()).isEqualTo(TipoDocumento.INVOICE);
+        assertThat(ocorrencia.getDescricao()).isEqualTo("Invoice com valor divergente do contrato");
+        assertThat(ocorrencia.getEnvioRecusadoEm()).isEqualTo(envioOriginal);
+        assertThat(ocorrencia.getOcorridoEm()).isNotNull();
+    }
+
+    @Test
+    void recusarAplicaTrimNoMotivoAntesDeSalvar() {
+        checklistService.enviar(invoice);
+
+        checklistService.recusar(invoice, "  Motivo com espacos nas pontas  ");
+
+        ArgumentCaptor<PedidoOcorrencia> captor = ArgumentCaptor.forClass(PedidoOcorrencia.class);
+        verify(ocorrenciaRepository).save(captor.capture());
+        assertThat(captor.getValue().getDescricao()).isEqualTo("Motivo com espacos nas pontas");
+    }
+
+    @Test
+    void recusarNaoAlteraEstadoDoPedidoMesmoComPedidoJaEmbarcado() {
+        // Cenario real onde um documento fica "enviado, nao aceito" com o
+        // pedido ja alem de DOCUMENTACAO_ACEITA: reaberto e reenviado apos
+        // o embarque (reabrirAposAceite nao reverte estado depois de
+        // EMBARCADO - so a ocorrencia e gravada).
+        checklistService.enviar(invoice);
+        List.of(invoice, packingList, bl, certificado).forEach(d -> {
+            checklistService.enviar(d);
+            checklistService.aceitar(d);
+        });
+        pedido.aplicarTransicao(PedidoEstado.EMBARCADO);
+        checklistService.reabrirAposAceite(invoice, "Correcao necessaria pos-embarque");
+        checklistService.enviar(invoice);
+
+        checklistService.recusar(invoice, "Ainda incorreta apos reenvio");
+
+        assertThat(pedido.getEstado()).isEqualTo(PedidoEstado.EMBARCADO);
+    }
+
+    @Test
+    void naoPermiteRecusarDocumentoNaoEnviado() {
+        assertThatExceptionOfType(com.eversonrubira.exporttracking.pedido.exception.DocumentoNaoEnviadoException.class)
+                .isThrownBy(() -> checklistService.recusar(invoice, "Tentativa invalida"));
+    }
+
+    @Test
+    void naoPermiteRecusarDocumentoJaAceito() {
+        checklistService.enviar(invoice);
+        checklistService.aceitar(invoice);
+
+        assertThatExceptionOfType(com.eversonrubira.exporttracking.pedido.exception.DocumentoJaAceitoException.class)
+                .isThrownBy(() -> checklistService.recusar(invoice, "Tentativa invalida"));
+    }
+
+    @Test
+    void recusarDuasVezesGravaDuasOcorrenciasDistintasSemApagarAAnterior() {
+        checklistService.enviar(invoice);
+        checklistService.recusar(invoice, "Primeira recusa: invoice sem assinatura");
+        checklistService.enviar(invoice);
+        checklistService.recusar(invoice, "Segunda recusa: valor ainda divergente");
+
+        ArgumentCaptor<PedidoOcorrencia> captor = ArgumentCaptor.forClass(PedidoOcorrencia.class);
+        verify(ocorrenciaRepository, times(2)).save(captor.capture());
+        List<PedidoOcorrencia> ocorrencias = captor.getAllValues();
+
+        assertThat(ocorrencias).hasSize(2);
+        assertThat(ocorrencias.get(0).getDescricao()).isEqualTo("Primeira recusa: invoice sem assinatura");
+        assertThat(ocorrencias.get(1).getDescricao()).isEqualTo("Segunda recusa: valor ainda divergente");
+        assertThat(!ocorrencias.get(1).getOcorridoEm().isBefore(ocorrencias.get(0).getOcorridoEm())).isTrue();
+        assertThat(invoice.getEnviadoEm()).isNull();
     }
 }

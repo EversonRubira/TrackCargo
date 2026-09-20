@@ -42,6 +42,17 @@ public class PedidoOcorrencia {
     @Column(name = "ocorrido_em", nullable = false)
     private LocalDateTime ocorridoEm;
 
+    // Os dois campos abaixo (V5) so sao preenchidos em RECUSA_DOCUMENTO -
+    // nulos pros demais tipos, que nao se referem a um documento
+    // especifico do checklist. E o que o PDF de status (tarefa futura,
+    // separada) vai ler pra montar o historico de recusas por documento.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipo_documento", length = 40)
+    private TipoDocumento tipoDocumento;
+
+    @Column(name = "envio_recusado_em")
+    private LocalDateTime envioRecusadoEm;
+
     protected PedidoOcorrencia() {
     }
 
@@ -52,9 +63,18 @@ public class PedidoOcorrencia {
         this.ocorridoEm = LocalDateTime.now();
     }
 
+    public PedidoOcorrencia(Pedido pedido, TipoOcorrencia tipo, String descricao,
+                             TipoDocumento tipoDocumento, LocalDateTime envioRecusadoEm) {
+        this(pedido, tipo, descricao);
+        this.tipoDocumento = tipoDocumento;
+        this.envioRecusadoEm = envioRecusadoEm;
+    }
+
     public UUID getId() { return id; }
     public Pedido getPedido() { return pedido; }
     public TipoOcorrencia getTipo() { return tipo; }
     public String getDescricao() { return descricao; }
     public LocalDateTime getOcorridoEm() { return ocorridoEm; }
+    public TipoDocumento getTipoDocumento() { return tipoDocumento; }
+    public LocalDateTime getEnvioRecusadoEm() { return envioRecusadoEm; }
 }

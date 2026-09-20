@@ -202,21 +202,34 @@ desde o início.
 > antes do save, não mais `DataIntegrityViolationException` vazando
 > do banco).
 
-### `pedido_ocorrencia` (V3)
+### `pedido_ocorrencia` (V3, colunas `tipo_documento`/`envio_recusado_em` na V5)
 
 | Campo | Tipo | Constraint |
 |---|---|---|
 | id | UUID | PK |
 | pedido_id | UUID | FK → pedido.id, NOT NULL |
-| tipo | VARCHAR(40) | NOT NULL (enum: REABERTURA_DOCUMENTO, ALTERACAO_DADOS_PEDIDO, OUTRO) |
+| tipo | VARCHAR(40) | NOT NULL (enum: REABERTURA_DOCUMENTO, RECUSA_DOCUMENTO (V5), ALTERACAO_DADOS_PEDIDO, OUTRO) |
 | descricao | VARCHAR(500) | NOT NULL — motivo, sempre obrigatório |
 | ocorrido_em | TIMESTAMP | NOT NULL |
+| tipo_documento | VARCHAR(40) | NULL (V5) — só preenchido em `RECUSA_DOCUMENTO`; `NULL` pros demais tipos, que não se referem a um documento específico do checklist |
+| envio_recusado_em | TIMESTAMP | NULL (V5) — só preenchido em `RECUSA_DOCUMENTO`: a data do `enviado_em` que foi recusado (o `ocorrido_em` da própria linha já é a data da recusa) |
 
 Índice em `pedido_id`. Tabela genérica para eventos que geram
 atraso/custo extra e precisam de motivo documentado — cobre hoje
-reabertura de documento já aceito e alteração de consignee
-pós-embarque; não é histórico de todas as mudanças do pedido (isso
-continua em `pedido_transicao` para estado).
+reabertura de documento já aceito, recusa de documento (V5) e
+alteração de consignee pós-embarque; não é histórico de todas as
+mudanças do pedido (isso continua em `pedido_transicao` para estado).
+
+> **Por que colunas novas em vez de só o `descricao` de texto livre
+> (V5):** o PDF de status ao cliente (tarefa futura e separada) vai
+> precisar renderizar, por documento, uma lista estruturada de
+> recusas com data do envio recusado + data da recusa + motivo — não
+> dá pra extrair isso de forma confiável de uma string livre. As duas
+> colunas ficam `NULL` pros tipos de ocorrência que não se aplicam
+> (mesmo padrão de coluna opcional já usado em `checklist_documento.descricao`,
+> só preenchida em `DOCUMENTO_ADICIONAL`) — não foi necessário
+> normalizar em tabela própria, a fricção real (o PDF) só pede esses
+> dois campos extras.
 
 ### `pedido_sequencia` (V4)
 
@@ -294,6 +307,54 @@ original — registradas aqui para não ficarem só no código:
 não aceito, lança `DocumentoNaoAceitoException` (mesmo padrão de
 `DocumentoNaoEnviadoException` de `aceitar()`).
 
+## Regra de negócio — recusa de documento (V5)
+
+- **Pré-condição: `enviado_em` preenchido e `aceito_em` nulo.**
+  Documento não enviado → `DocumentoNaoEnviadoException` (409, reusa a
+  mesma exceção de `aceitar()` — a pré-condição "documento não foi
+  enviado ainda" é idêntica). Documento já aceito →
+  `DocumentoJaAceitoException` (409, mesma exceção reusada de
+  `enviar()`/`aceitar()` — recusar um documento aceito não faz
+  sentido, a única forma de mudar um documento aceito continua sendo
+  `reabrirAposAceite()`). Nenhuma exceção nova foi criada — as duas
+  pré-condições já tinham exceção de domínio equivalente.
+- **Efeito em `checklist_documento`:** `enviado_em` volta a `NULL`
+  (documento pendente de novo). O motivo/data da recusa não ficam
+  aqui — vivem só em `pedido_ocorrencia` (ver tabela acima), que nunca
+  é sobrescrita por um reenvio posterior.
+- **`recusar()` nunca transiciona `pedido.estado`.** Diferente de
+  `reabrirAposAceite()` (que regride `DOCUMENTACAO_ACEITA` →
+  `DOCUMENTACAO_ENVIADA` enquanto o pedido ainda não embarcou), a
+  recusa não tem nenhuma regressão de estado — nem mesmo desfazer o
+  `CRIADO` → `DOCUMENTACAO_ENVIADA` do primeiro envio, se o documento
+  recusado for o único que já tinha sido enviado. Motivo: como
+  `DOCUMENTACAO_ACEITA` só é alcançada quando **todos** os documentos
+  têm `aceito_em` preenchido, um documento "enviado, não aceito"
+  (pré-condição pra recusar) com o pedido já em `DOCUMENTACAO_ACEITA`
+  ou além só existe em dois cenários — um `DOCUMENTO_ADICIONAL`
+  enviado depois da aceitação geral, ou um documento reaberto
+  (`reabrirAposAceite`) e reenviado depois do embarque. Em ambos, a
+  mesma regra de `reabrirAposAceite()` pós-embarque se aplica ("não há
+  como desfazer um navio que já saiu"), só que de forma ainda mais
+  direta: a recusa nunca desfaz uma aceitação, então não há nada pra
+  regredir. Decisão confirmada com o dono do domínio antes da
+  implementação (não é uma omissão).
+- **Reenvio após recusa reusa `enviar()` sem nenhuma mudança** — como
+  `marcarEnviado()` já não tinha guarda contra reenviar um documento
+  "enviado, não aceito" (só bloqueia contra documento já aceito), o
+  fluxo enviar→recusar→reenviar já funcionava sem alteração; só
+  precisou de teste confirmando (`FluxoPedidoE2ETest.recusarDocumentoEReenviarAtualizaDataDeEnvio`).
+- **Motivo:** texto livre, `@NotBlank` + `@Size(max = 500)` no DTO
+  (`RecusarDocumentoRequest`, mesmo formato de `ReabrirDocumentoRequest`),
+  `trim()` aplicado no service antes de salvar a ocorrência.
+- **Consulta cronológica de recusas por documento:** método
+  `ChecklistService.buscarRecusas(numeroPedido, tipo)`, delega pra
+  `PedidoOcorrenciaRepository.findByPedido_NumeroPedidoAndTipoAndTipoDocumentoOrderByOcorridoEmAsc(...)`.
+  **Sem endpoint REST próprio ainda** — o único consumidor previsto
+  hoje é o PDF de status (tarefa futura e separada), então expor uma
+  rota agora seria antecipar uma necessidade que ainda não existe;
+  decisão confirmada com o dono do domínio antes da implementação.
+
 ## Endpoints
 
 Implementados na Fase 4 (`PedidoController` + `ChecklistController`):
@@ -306,6 +367,7 @@ Implementados na Fase 4 (`PedidoController` + `ChecklistController`):
 | PATCH | `/pedidos/{numeroPedido}/documentos/{tipo}/enviar` | Marca `enviado_em`. Se pedido está em `CRIADO`, transiciona automaticamente para `DOCUMENTACAO_ENVIADA` |
 | PATCH | `/pedidos/{numeroPedido}/documentos/{tipo}/aceitar` | Marca `aceito_em` (exige `enviado_em` preenchido, senão 409). Se todos os itens obrigatórios ficarem com `aceito_em` preenchido, transiciona automaticamente para `DOCUMENTACAO_ACEITA` |
 | PATCH | `/pedidos/{numeroPedido}/documentos/{tipo}/reabrir` | Body `{ "motivo": "..." }`. Exige documento aceito (senão 409); reverte pra `DOCUMENTACAO_ENVIADA` só se o pedido ainda não tiver embarcado; grava `pedido_ocorrencia` sempre |
+| PATCH | `/pedidos/{numeroPedido}/documentos/{tipo}/recusar` | Body `{ "motivo": "..." }` (V5). Exige `enviado_em` preenchido e `aceito_em` nulo (senão 409 `DOCUMENTO_NAO_ENVIADO`/`DOCUMENTO_JA_ACEITO`); zera `enviado_em` (documento volta a pendente), grava `pedido_ocorrencia` (tipo `RECUSA_DOCUMENTO`, com `tipoDocumento` + `envioRecusadoEm`); nunca transiciona `pedido.estado` — ver "Regra de negócio — recusa de documento" acima. `204 No Content`, mesmo padrão de `enviar`/`aceitar`/`reabrir` |
 | POST | `/pedidos/{numeroPedido}/pagamento-parcial` | Exige `podeTransicionarManualmentePara(PAGAMENTO_PARCIAL_RECEBIDO)` (mesma trava de `/transicionar`, hoje só a partir de `DOCUMENTACAO_ACEITA`), senão 409. Marca `pagamento_parcial_confirmado_em`, transiciona e grava `pedido_transicao` |
 | POST | `/pedidos/{numeroPedido}/pagamento-saldo` | Exige `podeTransicionarManualmentePara(PAGAMENTO_SALDO_RECEBIDO)` (hoje só a partir de `EMBARCADO`), senão 409. Marca `pagamento_saldo_confirmado_em`, transiciona e grava `pedido_transicao` |
 | GET | `/pedidos/{numeroPedido}/historico` | Lista `pedido_transicao` do pedido ordenada por `ocorrido_em` ascendente (`PedidoTransicaoResponse[]`) |
@@ -518,8 +580,8 @@ Toda resposta de erro segue corpo padrão:
 | `PedidoNaoEncontradoException` | 404 | `PEDIDO_NAO_ENCONTRADO` |
 | `ChecklistDocumentoNaoEncontradoException` | 404 | `CHECKLIST_DOCUMENTO_NAO_ENCONTRADO` |
 | `TransicaoInvalidaException` | 409 | `TRANSICAO_INVALIDA` |
-| `DocumentoJaAceitoException` | 409 | `DOCUMENTO_JA_ACEITO` |
-| `DocumentoNaoEnviadoException` | 409 | `DOCUMENTO_NAO_ENVIADO` |
+| `DocumentoJaAceitoException` | 409 | `DOCUMENTO_JA_ACEITO` — reusada por `enviar()`, `aceitar()` e `recusar()` (V5) |
+| `DocumentoNaoEnviadoException` | 409 | `DOCUMENTO_NAO_ENVIADO` — reusada por `aceitar()` e `recusar()` (V5) |
 | `DocumentoNaoAceitoException` | 409 | `DOCUMENTO_NAO_ACEITO` |
 | `DocumentoAdicionalJaExisteException` | 409 | `DOCUMENTO_ADICIONAL_JA_EXISTE` |
 | `MethodArgumentNotValidException` (Bean Validation) | 400 | `VALIDACAO_INVALIDA` |
@@ -634,6 +696,11 @@ dos valores atualizados de `ciaMaritima`/`numeroContainer`.
 | PATCH /transicionar sem novoEstado retorna 400 | API | `PedidoControllerTest.transicionarSemNovoEstadoRetorna400` |
 | Enviar/aceitar documento retorna 204; erro de domínio retorna 409 | API | `ChecklistControllerTest.enviarRetorna204` + `enviarDocumentoJaAceitoRetorna409` + `aceitarRetorna204` + `aceitarDocumentoNaoEnviadoRetorna409` |
 | Reabrir documento aceito retorna 204; sem aceite prévio retorna 409; sem motivo retorna 400 | API | `ChecklistControllerTest.reabrirRetorna204` + `reabrirDocumentoNaoAceitoRetorna409` + `reabrirSemMotivoRetorna400` |
+| Recusar documento (enviado, não aceito) volta `enviado_em` a nulo e grava `pedido_ocorrencia` com motivo/tipoDocumento/envioRecusadoEm; nunca transiciona `pedido.estado` (mesmo com pedido já embarcado) | Unitário | `ChecklistServiceTest.recusarDocumentoEnviadoVoltaParaPendenteEGravaOcorrencia` + `recusarNaoAlteraEstadoDoPedidoMesmoComPedidoJaEmbarcado` + `recusarAplicaTrimNoMotivoAntesDeSalvar` |
+| Recusar documento não enviado ou já aceito rejeita (409); recusar duas vezes mantém as duas ocorrências no histórico, em ordem, sem apagar a anterior | Unitário | `ChecklistServiceTest.naoPermiteRecusarDocumentoNaoEnviado` + `naoPermiteRecusarDocumentoJaAceito` + `recusarDuasVezesGravaDuasOcorrenciasDistintasSemApagarAAnterior` |
+| `PATCH /recusar` retorna 204 no caminho válido; 409 se não enviado/já aceito; 400 com motivo vazio, só espaços ou maior que 500 caracteres | API | `ChecklistControllerTest.recusarRetorna204` + `recusarDocumentoNaoEnviadoRetorna409` + `recusarDocumentoJaAceitoRetorna409` + `recusarSemMotivoRetorna400` + `recusarComMotivoSoEspacosRetorna400` + `recusarComMotivoMaiorQue500CaracteresRetorna400` |
+| Consulta cronológica de recusas por documento filtra por tipo/tipoDocumento e ordena por `ocorrido_em`, mesmo com outros tipos de ocorrência e outros documentos no meio | Repositório (Postgres real) | `PedidoOcorrenciaRepositoryTest.buscaRecusasDeUmDocumentoEmOrdemCronologicaIgnorandoOutrosTiposEDocumentos` + `semRecusasRegistradasRetornaListaVazia` |
+| Reenvio após recusa grava uma nova data em `enviado_em` (fluxo enviar→recusar→reenviar completo); recusar documento já aceito retorna 409 na API real | E2E | `FluxoPedidoE2ETest.recusarDocumentoEReenviarAtualizaDataDeEnvio` + `recusarDocumentoJaAceitoRetorna409NaAPIReal` |
 | Documento inexistente (tipo sem registro de checklist) retorna 404; `{tipo}` inválido na rota retorna 400 | API | `ChecklistControllerTest.enviarDocumentoInexistenteRetorna404` + `tipoDocumentoInvalidoNaRotaRetorna400` |
 | Pagamento parcial/saldo fora de sequência retorna 409; válido retorna 200 | API | `PedidoControllerTest.confirmarPagamentoParcialRetorna200` + `confirmarPagamentoParcialForaDeSequenciaRetorna409` + `confirmarPagamentoSaldoRetorna200` + `confirmarPagamentoSaldoSemEstarEmbarcadoRetorna409` |
 | Histórico vazio retorna lista vazia; com transições retorna ordenado; pedido inexistente retorna 404 | API | `PedidoControllerTest.historicoVazioRetorna200ComListaVazia` + `historicoComTransicoesRetornaListaOrdenada` + `historicoDePedidoInexistenteRetorna404` |

@@ -7,6 +7,9 @@ import com.eversonrubira.exporttracking.pedido.exception.DocumentoNaoEnviadoExce
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 @Service
 public class ChecklistService {
 
@@ -69,6 +72,42 @@ public class ChecklistService {
         }
     }
 
+    // Recusa: documento enviado mas nunca aceito volta a pendente
+    // (enviadoEm nulo) - reusa as mesmas excecoes de enviar()/aceitar()
+    // (nao enviado / ja aceito) em vez de criar uma nova, porque a
+    // pre-condicao e identica (enviadoEm != null && aceitoEm == null).
+    // Sem transicao de pedido.estado aqui (decisao registrada no SPEC.md):
+    // um documento so pode estar "enviado, nao aceito" com o pedido ja
+    // em DOCUMENTACAO_ACEITA (ou alem) em cenarios onde regredir o
+    // estado nao faria sentido (documento adicional tardio, ou
+    // reaberto/reenviado apos o embarque) - mesma logica de
+    // "nao ha como desfazer um navio que ja saiu" ja aplicada a
+    // reabrirAposAceite().
+    @Transactional
+    public void recusar(ChecklistDocumento documento, String motivo) {
+        if (documento.getEnviadoEm() == null) {
+            throw new DocumentoNaoEnviadoException(documento.getTipoDocumento());
+        }
+        if (documento.getAceitoEm() != null) {
+            throw new DocumentoJaAceitoException(documento.getTipoDocumento());
+        }
+        LocalDateTime envioRecusado = documento.getEnviadoEm();
+        String motivoTratado = motivo.trim();
+        documento.recusar();
+
+        ocorrenciaRepository.save(new PedidoOcorrencia(documento.getPedido(), TipoOcorrencia.RECUSA_DOCUMENTO,
+                motivoTratado, documento.getTipoDocumento(), envioRecusado));
+    }
+
+    // Historico cronologico de recusas de um documento - sobrevive a
+    // reenvios/aceites posteriores, ja que pedido_ocorrencia nunca e
+    // sobrescrita. Consumido pelo PDF de status (tarefa futura), por
+    // isso ainda sem endpoint REST proprio.
+    public List<PedidoOcorrencia> buscarRecusas(String numeroPedido, TipoDocumento tipo) {
+        return ocorrenciaRepository.findByPedido_NumeroPedidoAndTipoAndTipoDocumentoOrderByOcorridoEmAsc(
+                numeroPedido, TipoOcorrencia.RECUSA_DOCUMENTO, tipo);
+    }
+
     // Sobrecargas usadas pelo Controller - resolvem o documento a partir do
     // numero do pedido + tipo (sem precisar do PedidoRepository aqui, ja
     // que a busca navega "pedido.numeroPedido" pela propria associacao)
@@ -86,6 +125,11 @@ public class ChecklistService {
     @Transactional
     public void reabrirAposAceite(String numeroPedido, TipoDocumento tipo, String motivo) {
         reabrirAposAceite(buscarDocumento(numeroPedido, tipo), motivo);
+    }
+
+    @Transactional
+    public void recusar(String numeroPedido, TipoDocumento tipo, String motivo) {
+        recusar(buscarDocumento(numeroPedido, tipo), motivo);
     }
 
     private ChecklistDocumento buscarDocumento(String numeroPedido, TipoDocumento tipo) {
