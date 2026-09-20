@@ -164,6 +164,10 @@ export interface PedidoTransicaoResponse {
   ocorridoEm: string
 }
 
+export interface ProximoNumeroResponse {
+  numeroPedidoSugerido: string
+}
+
 export interface ErrorResponse {
   erro: string
   mensagem: string

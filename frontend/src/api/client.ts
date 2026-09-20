@@ -5,6 +5,7 @@ import type {
   PedidoEstado,
   PedidoResponse,
   PedidoTransicaoResponse,
+  ProximoNumeroResponse,
   TipoDocumento,
 } from './types'
 
@@ -53,6 +54,10 @@ export function buscarPedido(numeroPedido: string): Promise<PedidoResponse> {
 
 export function criarPedido(dto: CriarPedidoRequest): Promise<PedidoResponse> {
   return request('/pedidos', { method: 'POST', body: JSON.stringify(dto) })
+}
+
+export function buscarProximoNumeroSugerido(): Promise<ProximoNumeroResponse> {
+  return request('/pedidos/proximo-numero')
 }
 
 export function transicionar(

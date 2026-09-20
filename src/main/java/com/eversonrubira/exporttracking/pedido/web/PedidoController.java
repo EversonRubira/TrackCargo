@@ -3,6 +3,7 @@ package com.eversonrubira.exporttracking.pedido.web;
 import com.eversonrubira.exporttracking.pedido.ChecklistDocumento;
 import com.eversonrubira.exporttracking.pedido.Pedido;
 import com.eversonrubira.exporttracking.pedido.PedidoEstado;
+import com.eversonrubira.exporttracking.pedido.PedidoSequenciaService;
 import com.eversonrubira.exporttracking.pedido.PedidoService;
 import com.eversonrubira.exporttracking.pedido.PedidoTransicao;
 import com.eversonrubira.exporttracking.pedido.pdf.PdfStatusService;
@@ -10,6 +11,7 @@ import com.eversonrubira.exporttracking.pedido.web.dto.AtualizarLogisticaRequest
 import com.eversonrubira.exporttracking.pedido.web.dto.CriarPedidoRequest;
 import com.eversonrubira.exporttracking.pedido.web.dto.PedidoResponse;
 import com.eversonrubira.exporttracking.pedido.web.dto.PedidoTransicaoResponse;
+import com.eversonrubira.exporttracking.pedido.web.dto.ProximoNumeroResponse;
 import com.eversonrubira.exporttracking.pedido.web.dto.TransicionarRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -33,10 +35,13 @@ public class PedidoController {
 
     private final PedidoService pedidoService;
     private final PdfStatusService pdfStatusService;
+    private final PedidoSequenciaService pedidoSequenciaService;
 
-    public PedidoController(PedidoService pedidoService, PdfStatusService pdfStatusService) {
+    public PedidoController(PedidoService pedidoService, PdfStatusService pdfStatusService,
+                             PedidoSequenciaService pedidoSequenciaService) {
         this.pedidoService = pedidoService;
         this.pdfStatusService = pdfStatusService;
+        this.pedidoSequenciaService = pedidoSequenciaService;
     }
 
     @PostMapping
@@ -44,6 +49,11 @@ public class PedidoController {
     public PedidoResponse criar(@Valid @RequestBody CriarPedidoRequest request) {
         Pedido pedido = pedidoService.criar(request.paraPedido());
         return responder(pedido);
+    }
+
+    @GetMapping("/proximo-numero")
+    public ProximoNumeroResponse proximoNumero() {
+        return new ProximoNumeroResponse(pedidoSequenciaService.sugerirProximoNumero());
     }
 
     @GetMapping

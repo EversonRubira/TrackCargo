@@ -60,7 +60,7 @@ export default function ListaPedidos() {
                 <tr key={p.numeroPedido} className="border-b border-stone-100 last:border-0">
                   <td className="px-4 py-3">
                     <Link
-                      to={`/pedidos/${p.numeroPedido}`}
+                      to={`/pedidos/${encodeURIComponent(p.numeroPedido)}`}
                       className="font-medium text-stone-900 underline-offset-2 hover:underline"
                     >
                       {p.numeroPedido}
