@@ -28,7 +28,10 @@ Geração de PDF (F03): **OpenPDF `3.0.5`** (`com.github.librepdf:openpdf`,
 pacote `org.openpdf.text.*` — renomeado de `com.lowagie.text.*`, nome
 herdado do iText 2.x, a partir da major version 2.x/3.x) no
 **backend**. Ver decisão completa na seção "Decisões de design" e no
-F03 abaixo.
+F03 abaixo. Extração de texto nos testes usa o `PdfTextExtractor` do
+próprio OpenPDF (nenhuma dependência nova) — ver "Seção Documentos do
+PDF de status" mais abaixo pra limitação conhecida dele com
+acentos/cedilha.
 
 > Nota de stack (Fase 4): Boot 4.1 trocou pacote/artefato de teste 3
 > vezes ao longo das fases — Flyway (Fase 1), `@DataJpaTest`/
@@ -419,20 +422,97 @@ recebe `@RequestParam(required = false) PedidoEstado estado`.
 
 **`GET /pedidos/{numeroPedido}/status.pdf` (F03) — implementação:**
 `PdfStatusService` (pacote `pedido.pdf`) monta o documento a partir
-de `Pedido` + a lista de `PedidoTransicao` (pro estado atual, a
-posição na barra de progresso, e a data da última transição) — os
-mesmos dados que `PedidoResponse`/`PedidoTransicaoResponse` já
-expõem, nenhum campo novo calculado ou persistido. Conteúdo do PDF:
-dados do pedido (número, cliente, consignee, produto, incoterm) +
-tabela de progresso das 8 etapas do ciclo de vida (`CRIADO` → ... →
+de `Pedido` + a lista de `PedidoTransicao` + o checklist
+(`List<ChecklistDocumento>`) + as recusas por documento
+(`Map<TipoDocumento, List<PedidoOcorrencia>>`) — os mesmos dados que
+`PedidoResponse`/`PedidoTransicaoResponse`/`ChecklistDocumentoResponse`
+já expõem, nenhum campo novo calculado ou persistido. Conteúdo do
+PDF: dados do pedido (número, cliente, consignee, produto, incoterm)
++ tabela de progresso das 8 etapas do ciclo de vida (`CRIADO` → ... →
 `ENTREGUE`, células até a atual destacadas com fundo verde claro;
 `CANCELADO` é estado terminal fora dessa sequência, mostrado como
 selo "PEDIDO CANCELADO" em vez de posição na barra) — inspirado em
-rastreio de transportadora (DHL, Correios). `PedidoController.statusPdf()`
-chama `PdfStatusService.gerar(pedido, historico)` diretamente,
-devolvendo `ResponseEntity<byte[]>` com `produces =
-MediaType.APPLICATION_PDF_VALUE` — o mesmo método que a futura
-automação de e-mail (backlog v2) vai chamar, sem passar por HTTP.
+rastreio de transportadora (DHL, Correios) — seguida da seção
+"Documentos" (ver abaixo). `PedidoService`/`ChecklistService` continuam
+sendo as únicas fontes desses dados; `PdfStatusService` continua puro
+(sem repositório/service injetado), só recebe tudo pronto como
+parâmetro.
+
+`PedidoController.statusPdf()` compõe os quatro dados
+(`pedidoService.buscarPorNumero/buscarHistorico/buscarChecklist` +
+`checklistService.buscarRecusasPorDocumento`) antes de chamar
+`pdfStatusService.gerar(...)`, devolvendo `ResponseEntity<byte[]>`
+com `produces = MediaType.APPLICATION_PDF_VALUE`. Essa composição de
+4 chamadas está inline no controller por enquanto (comentário no
+código aponta isso) — quando a automação de e-mail (backlog v2)
+existir, ela vai precisar exatamente da mesma composição antes de
+chamar `gerar()`, e aí sim vale extrair pra um método reutilizável;
+hoje só tem um chamador, extrair antes disso seria abstração sem
+fricção real.
+
+### Seção "Documentos" do PDF de status (recusa de documento)
+
+Logo depois da barra de progresso, uma tabela com uma linha por item
+do checklist — **ordem estável do enum `TipoDocumento`** (não a
+ordem de retorno de `findByPedidoId()`, que não garante ordem),
+colunas `Documento | Status | Último envio | Aceito em`:
+
+- **Rótulos legíveis na coluna Documento** (não o nome do enum):
+  "Invoice", "Packing list", "BL", "Certificado sanitário",
+  "Documento adicional" (+ `" - " + descricao` quando houver). Método
+  privado `PdfStatusService.rotulo(TipoDocumento)` — `switch`
+  expression **sem `default`** de propósito: um `TipoDocumento` novo
+  sem rótulo vira erro de compilação, não um documento sem nome
+  legível silenciosamente no PDF que o cliente recebe.
+- **Status calculado, sem coluna nova no banco:** "Aceito" se
+  `aceitoEm != null`; senão "Enviado" se `enviadoEm != null`; senão
+  "Recusado, aguardando reenvio" se existir pelo menos uma recusa
+  registrada pra aquele documento; senão "Pendente".
+- **Recusas:** logo abaixo da linha do documento (quando existirem),
+  uma célula com `colspan` total da tabela (não uma coluna estreita —
+  o motivo tem até 500 caracteres, escrito pro cliente ler, precisa
+  de espaço pra quebrar linha direito) listando **todas** as recusas
+  em ordem cronológica, mesmo depois de o documento ter sido
+  reenviado e aceito (`pedido_ocorrencia` nunca é sobrescrita pelo
+  reenvio — ver V5 na seção de modelo de dados): `"Recusado em
+  dd/MM/yyyy HH:mm (envio de dd/MM/yyyy HH:mm): <motivo>"`.
+- **Composição dos dados:** `ChecklistService.buscarRecusasPorDocumento(numeroPedido)`
+  (novo) itera `TipoDocumento.values()` reaproveitando o
+  `buscarRecusas()` já existente — só entram no mapa os tipos com
+  pelo menos uma recusa. Nenhuma query nova.
+
+> **Limitação encontrada: extração de texto do PDF não decodifica
+> acentos/cedilha de fontes padrão não embutidas.** O
+> `PdfTextExtractor` do próprio OpenPDF 3.0.5
+> (`org.openpdf.text.pdf.parser`) transforma **qualquer** caractere
+> acima de `0x7F` em WinAnsiEncoding (todo acento/cedilha do
+> português: ã, ç, é, í, ó, ú, etc.) num `"?"` durante a extração,
+> quando a fonte é um Type1 padrão (Helvetica, uma das 14 fontes base
+> do PDF) não embutido, sem CMap `ToUnicode`. Confirmado que **o PDF
+> em si está correto**: renderizando a página como imagem (PyMuPDF) o
+> texto aparece com acentuação perfeita — é só a extração automatizada
+> que falha, não a geração. Caracteres realmente fora do WinAnsi
+> (emoji, cirílico, CJK) têm comportamento que varia com as fontes do
+> sistema onde o PDF é gerado (podem ser omitidos, virar `"?"` ou, com
+> fallback de fonte do SO, até renderizar) — não é uma garantia da
+> biblioteca, por isso os testes não travam numa expectativa
+> específica pra esses caracteres, só confirmam que a geração não
+> quebra e que o resto do texto ao redor continua legível.
+>
+> Cheguei a adicionar o Apache PDFBox como dependência só de teste
+> pra tentar extrair texto de forma mais confiável, mas comparei os
+> dois extratores no mesmo PDF antes de decidir manter isso: **PDFBox
+> tem exatamente a mesma limitação** (também vira `"?"` pra qualquer
+> acento/cedilha, e também varia pra caracteres fora do WinAnsi) — ou
+> seja, não resolvia nada que o `PdfTextExtractor` do próprio OpenPDF
+> já não fizesse. Removida a dependência; os testes usam só o
+> extrator que já é parte da stack de produção. Nenhuma mudança na
+> fonte/encoding de `PdfStatusService` foi feita pra "corrigir" isso —
+> embutir uma fonte Unicode de verdade (TrueType + Identity-H)
+> resolveria a extração e ampliaria o alfabeto suportado, mas é uma
+> mudança de escopo maior (bundle de arquivo de fonte) do que esta
+> feature pediu; fica registrado como possível follow-up se virar
+> fricção real.
 
 > **Biblioteca real: OpenPDF `3.0.5`** (`com.github.librepdf:openpdf`,
 > confirmada como a versão estável atual via `maven-metadata.xml`
@@ -709,6 +789,11 @@ dos valores atualizados de `ciaMaritima`/`numeroContainer`.
 | Pagamento-saldo fora de sequência retorna 409 na API real (não só no nível de Service) | E2E | `FluxoPedidoE2ETest.pagamentoSaldoForaDeSequenciaRetorna409NaAPIReal` |
 | `GET /pedidos` lista todos os pedidos sem filtro; `?estado=` filtra corretamente | Unitário + API | `PedidoServiceTest.listarSemFiltroRetornaTodosOsPedidos` + `listarComFiltroDeEstadoRetornaSoOsQueBatem` + `PedidoControllerTest.listarSemFiltroRetorna200ComTodosOsPedidos` + `listarComFiltroEstadoRetorna200SoComOsFiltrados` |
 | `GET /pedidos/{numero}/status.pdf` retorna 200 com `Content-Type: application/pdf`; pedido inexistente retorna 404 | API | `PedidoControllerTest.gerarPdfStatusRetorna200ComContentTypePdf` + `gerarPdfStatusDePedidoInexistenteRetorna404` |
+| Seção "Documentos" do PDF: status calculado corretamente (Pendente/Enviado/Aceito/Recusado aguardando reenvio) com as datas certas | Unitário (PDF real, extração via `PdfTextExtractor` do OpenPDF) | `PdfStatusServiceTest.documentoPendenteMostraStatusPendenteComTravessoesNasDatas` + `documentoEnviadoMostraStatusEnviadoComData` + `documentoAceitoMostraStatusAceitoComData` + `documentoRecusadoAguardandoReenvioMostraStatusMotivoEAsDuasDatas` |
+| Recusa continua listada após reenvio/aceite; duas recusas do mesmo documento aparecem na ordem da lista; documentos ordenados pela ordem do enum, não da lista recebida | Unitário (PDF real) | `PdfStatusServiceTest.documentoRecusadoReenviadoEAceitoMantemARecusaNoHistorico` + `duasRecusasDoMesmoDocumentoAparecemNaOrdemDaLista` + `documentosSaoOrdenadosPelaOrdemDoEnumNaoPelaOrdemDaListaRecebida` |
+| Coluna Documento usa rótulos legíveis (não o nome do enum), documento adicional mostra a descrição | Unitário (PDF real) | `PdfStatusServiceTest.colunaDocumentoUsaRotulosLegiveisEmVezDoNomeDoEnum` |
+| Motivo de 500 caracteres não lança exceção e não é truncado; motivo com acentos/cedilha não quebra a geração (extração garante só o texto ASCII ao redor — ver limitação documentada acima); motivo com emoji/caractere não-latino não lança exceção e o resto do motivo continua legível | Unitário (PDF real) | `PdfStatusServiceTest.motivoComQuinhentosCaracteresNaoLancaExcecaoENaoTemOFinalTruncado` + `motivoComAcentosECedilhaNaoLancaExcecaoEMantemTextoAoRedorLegivel` + `motivoComEmojiECaracterNaoLatinoNaoLancaExcecaoEMantemRestoDoMotivoLegivel` |
+| Fluxo real enviar→recusar→GET status.pdf (motivo aparece) →reenviar→GET status.pdf de novo (status "Enviado", recusa antiga ainda listada) | E2E | `FluxoPedidoE2ETest.statusPdfMostraMotivoDaRecusaEDepoisOStatusEnviadoComARecusaAindaListada` |
 | `PATCH /pedidos/{numero}/logistica` atualiza só `ciaMaritima`, só `numeroContainer`, ou os dois juntos; não gera `PedidoOcorrencia`; sem regra de estado (funciona em qualquer estado); pedido inexistente retorna 404 | Unitário + API | `PedidoServiceTest.atualizarDadosLogisticosComOsDoisCamposAtualizaAmbos` + `atualizarDadosLogisticosComSoCiaMaritimaNaoMexeNoContainer` + `atualizarDadosLogisticosComSoContainerNaoMexeNaCiaMaritima` + `PedidoControllerTest.atualizarLogisticaComSoCiaMaritimaAtualizaSoEsseCampo` + `atualizarLogisticaComSoNumeroContainerAtualizaSoEsseCampo` + `atualizarLogisticaComOsDoisCamposAtualizaAmbos` + `atualizarLogisticaDePedidoInexistenteRetorna404` |
 | Listagem e atualização de dados logísticos no meio do fluxo real; PDF de status gerado de verdade (OpenPDF) no final do fluxo completo | E2E | `FluxoPedidoE2ETest.fluxoCompletoCriadoAteEntregue` (logística + `?estado=` + `status.pdf`) + `listarSemFiltroIncluiPedidoRecemCriadoEComFiltroDeEstadoSoOsQueBatem` |
 | `GET /pedidos/proximo-numero` sugere `00001/<ano>` sem histórico e não cria/altera o contador | API + Integração | `PedidoControllerTest.proximoNumeroRetorna200ComSugestaoDoService` + `PedidoSequenciaServiceTest.sugerirProximoNumeroSemHistoricoRetorna00001ParaAnoAtual` + `sugerirProximoNumeroApenasEspiaNaoCriaNemAlteraOContador` |
