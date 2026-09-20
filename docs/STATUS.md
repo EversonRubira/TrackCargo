@@ -1,8 +1,108 @@
 # Status — TrackCargo
 
 ## Última atualização
-19/set/2026 — Numeração automática (sugerida) do pedido +
-correção do bug de navegação com número contendo barra
+20/set/2026 — Recusa de documento do checklist (branch
+`feature/recusa-documento`)
+
+## Recusa de documento do checklist
+
+Nova feature: documento do checklist enviado mas não aceito pode ser
+recusado com motivo — reaproveita o mecanismo já existente de
+reabertura/`pedido_ocorrencia` (nenhum estado ou abstração nova, só
+fricção real: o PDF de status ao cliente, tarefa futura e separada,
+vai precisar desse histórico).
+
+**Backend:**
+- Migration `V5__recusa_documento.sql`: `pedido_ocorrencia` ganha
+  `tipo_documento` e `envio_recusado_em` (nullable, só preenchidos em
+  `RECUSA_DOCUMENTO`) — é o que o PDF futuro vai ler pra montar a
+  lista de recusas por documento (data do envio recusado, data da
+  recusa via `ocorrido_em` já existente, motivo via `descricao` já
+  existente).
+- `TipoOcorrencia.RECUSA_DOCUMENTO` novo. `ChecklistDocumento.recusar()`
+  (pacote-privado, zera `enviadoEm`). `ChecklistService.recusar()`:
+  exige `enviadoEm` preenchido e `aceitoEm` nulo, reusando
+  `DocumentoNaoEnviadoException`/`DocumentoJaAceitoException` (mesma
+  pré-condição já coberta por elas em `enviar()`/`aceitar()` — nenhuma
+  exceção nova). `trim()` no motivo antes de salvar.
+- **Decisão confirmada com o dono do domínio antes de implementar:
+  `recusar()` nunca transiciona `pedido.estado`** — mesma lógica de
+  "não há como desfazer um navio que já saiu" já aplicada a
+  `reabrirAposAceite()` pós-embarque, só que mais direta aqui (a
+  recusa nunca desfaz uma aceitação).
+- `ChecklistService.buscarRecusas(numeroPedido, tipo)` (histórico
+  cronológico por documento, via `PedidoOcorrenciaRepository`) —
+  **sem endpoint REST próprio ainda**, decisão também confirmada: o
+  único consumidor prático é o PDF futuro, expor uma rota agora seria
+  antecipar necessidade que não existe.
+- `PATCH /pedidos/{numero}/documentos/{tipo}/recusar`, body
+  `{ "motivo": "..." }`, `204 No Content` (mesmo padrão de
+  `enviar`/`aceitar`/`reabrir`).
+
+**Frontend:**
+- `recusarDocumento()` em `client.ts`, botão "Recusar" em
+  `DetalhePedido.tsx` ao lado do "Aceitar" (mesma condição:
+  `enviadoEm` preenchido, `aceitoEm` nulo) — espelha o
+  `BotaoReabrir` já existente, com `maxLength=500` +
+  validação de obrigatório no cliente. Erro do backend sobe pelo
+  banner de erro já usado por todas as outras ações (nenhum mecanismo
+  novo). `types.ts` **não mudou** — nem `ReabrirDocumentoRequest` era
+  usado ali, então `recusar` seguiu o mesmo caminho sem tipo novo.
+- Confirmado (investigação pedida antes do Bloco 2): a tela não expõe
+  `TipoOcorrencia`/`PedidoOcorrencia` em lugar nenhum hoje — a seção
+  "Histórico de transições" consome `GET /historico`
+  (`pedido_transicao`, mudança de estado), não `pedido_ocorrencia`.
+  Nenhuma lista de rótulos de tipo de ocorrência existia pra
+  atualizar; decisão confirmada de não expor isso agora.
+
+**Testes novos (backend):** `ChecklistServiceTest` (+6),
+`ChecklistControllerTest` (+6), `PedidoOcorrenciaRepositoryTest` novo
+(Postgres real — prova a query cronológica filtrando tipo/documento e
+que recusas antigas sobrevivem a reenvio/aceite posterior),
+`FluxoPedidoE2ETest` (+2: enviar→recusar→reenviar com nova data;
+recusar documento já aceito → 409 real). Sem teste de frontend novo —
+`recusarDocumento()` segue o mesmo contrato de `reabrirDocumento()`,
+já sem cobertura própria antes desta feature.
+
+## Resultado da suíte completa — 2 rodadas
+**Backend (`mvn test`): 83/83 verde nas duas rodadas** (banco recriado
+do zero na segunda, Flyway reaplicou V1→V5).
+
+**Frontend (`npx tsc -b --force`, `npm run lint`, `npm run build`,
+`npm run test`): tudo limpo** (só os 2 warnings pré-existentes de
+`set-state-in-effect`, não relacionados).
+
+**Validação do fluxo real (via `curl`, mesmo contrato HTTP que
+`client.ts`/`DetalhePedido.tsx` usam — backend de pé, Postgres real,
+sem mock):** criei um pedido, enviei o INVOICE (`enviadoEm` preenchido
+→ coluna mostraria "Sim", botões Aceitar+Recusar visíveis), recusei
+(`enviadoEm` volta a `null` → "Não", `pedido.estado` continuou
+`DOCUMENTACAO_ENVIADA`, `GET /historico` sem nenhuma entrada nova —
+confirma que a recusa não mexe em transição de estado nem na tela de
+histórico), reenviei e aceitei, e confirmei os dois casos de erro que
+o banner do frontend exibiria: recusar documento já aceito → 409
+`DOCUMENTO_JA_ACEITO`, motivo vazio → 400 `VALIDACAO_INVALIDA`. **Não
+abri navegador nenhum** — não cliquei no botão de verdade nem vi o
+componente renderizado; essa validação visual final fica por conta do
+usuário.
+
+## Estado de saída (recusa de documento do checklist)
+Fechado: os 2 blocos (backend + frontend) implementados e commitados
+em `feature/recusa-documento`, suíte completa verde nos dois lados,
+`docs/SPEC.md` atualizado (tabela `pedido_ocorrencia`, regra de
+negócio da recusa, endpoint, mapeamento de exceção, tabela de
+correlação). PR aberto, aguardando revisão/merge — não faço merge
+sozinho.
+
+**Próximo passo natural (fora de escopo desta feature, registrado pra
+não se perder):** o PDF de status ao cliente (F03) vai precisar
+consumir `ChecklistService.buscarRecusas()` — hoje só acessível via
+service/repository, sem endpoint REST. Quando essa tarefa for aberta,
+decidir se o PDF chama o service direto (mesmo padrão já usado por
+`PdfStatusService`, que não passa por HTTP) ou se compensa expor um
+endpoint de consulta antes disso.
+
+---
 
 ## Numeração automática (sugerida) do número do pedido
 

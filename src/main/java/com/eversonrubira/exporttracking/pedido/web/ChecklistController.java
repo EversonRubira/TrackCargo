@@ -3,6 +3,7 @@ package com.eversonrubira.exporttracking.pedido.web;
 import com.eversonrubira.exporttracking.pedido.ChecklistService;
 import com.eversonrubira.exporttracking.pedido.TipoDocumento;
 import com.eversonrubira.exporttracking.pedido.web.dto.ReabrirDocumentoRequest;
+import com.eversonrubira.exporttracking.pedido.web.dto.RecusarDocumentoRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -44,5 +45,12 @@ public class ChecklistController {
     public void reabrir(@PathVariable String numeroPedido, @PathVariable TipoDocumento tipo,
                          @Valid @RequestBody ReabrirDocumentoRequest request) {
         checklistService.reabrirAposAceite(numeroPedido, tipo, request.motivo());
+    }
+
+    @PatchMapping("/recusar")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void recusar(@PathVariable String numeroPedido, @PathVariable TipoDocumento tipo,
+                         @Valid @RequestBody RecusarDocumentoRequest request) {
+        checklistService.recusar(numeroPedido, tipo, request.motivo());
     }
 }

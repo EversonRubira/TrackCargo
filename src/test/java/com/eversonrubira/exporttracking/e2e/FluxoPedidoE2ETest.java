@@ -157,6 +157,55 @@ class FluxoPedidoE2ETest {
     }
 
     @Test
+    void recusarDocumentoEReenviarAtualizaDataDeEnvio() throws InterruptedException {
+        String numeroPedido = novoNumeroPedido();
+        criarPedido(numeroPedido);
+
+        given().pathParam("numero", numeroPedido).pathParam("tipo", "INVOICE")
+                .when().patch("/pedidos/{numero}/documentos/{tipo}/enviar")
+                .then().statusCode(204);
+
+        String primeiroEnvio = enviadoEmDoInvoice(numeroPedido);
+        assertThat(primeiroEnvio).isNotNull();
+
+        given().pathParam("numero", numeroPedido).pathParam("tipo", "INVOICE").contentType(ContentType.JSON)
+                .body(corpoRecusar("Invoice com valor divergente do contrato"))
+                .when().patch("/pedidos/{numero}/documentos/{tipo}/recusar")
+                .then().statusCode(204);
+
+        assertThat(enviadoEmDoInvoice(numeroPedido)).isNull();
+
+        Thread.sleep(5);
+
+        given().pathParam("numero", numeroPedido).pathParam("tipo", "INVOICE")
+                .when().patch("/pedidos/{numero}/documentos/{tipo}/enviar")
+                .then().statusCode(204);
+
+        String segundoEnvio = enviadoEmDoInvoice(numeroPedido);
+        assertThat(segundoEnvio).isNotNull();
+        assertThat(segundoEnvio).isNotEqualTo(primeiroEnvio);
+    }
+
+    @Test
+    void recusarDocumentoJaAceitoRetorna409NaAPIReal() {
+        String numeroPedido = novoNumeroPedido();
+        criarPedido(numeroPedido);
+
+        given().pathParam("numero", numeroPedido).pathParam("tipo", "INVOICE")
+                .when().patch("/pedidos/{numero}/documentos/{tipo}/enviar")
+                .then().statusCode(204);
+        given().pathParam("numero", numeroPedido).pathParam("tipo", "INVOICE")
+                .when().patch("/pedidos/{numero}/documentos/{tipo}/aceitar")
+                .then().statusCode(204);
+
+        given().pathParam("numero", numeroPedido).pathParam("tipo", "INVOICE").contentType(ContentType.JSON)
+                .body(corpoRecusar("Tentativa invalida"))
+                .when().patch("/pedidos/{numero}/documentos/{tipo}/recusar")
+                .then().statusCode(409)
+                .body("erro", equalTo("DOCUMENTO_JA_ACEITO"));
+    }
+
+    @Test
     void pagamentoSaldoForaDeSequenciaRetorna409NaAPIReal() {
         String numeroPedido = novoNumeroPedido();
         criarPedido(numeroPedido);
@@ -190,6 +239,20 @@ class FluxoPedidoE2ETest {
         return """
                 { "novoEstado": "%s" }
                 """.formatted(novoEstado);
+    }
+
+    private String corpoRecusar(String motivo) {
+        return """
+                { "motivo": "%s" }
+                """.formatted(motivo);
+    }
+
+    private String enviadoEmDoInvoice(String numeroPedido) {
+        return given().pathParam("numero", numeroPedido)
+                .when().get("/pedidos/{numero}")
+                .then().statusCode(200)
+                .extract().response()
+                .jsonPath().getString("checklist.find { it.tipoDocumento == 'INVOICE' }.enviadoEm");
     }
 
     private String corpoCriacao(String numeroPedido) {

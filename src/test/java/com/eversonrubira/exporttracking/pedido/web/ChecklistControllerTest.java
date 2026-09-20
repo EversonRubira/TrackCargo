@@ -7,6 +7,7 @@ import com.eversonrubira.exporttracking.pedido.exception.DocumentoJaAceitoExcept
 import com.eversonrubira.exporttracking.pedido.exception.DocumentoNaoAceitoException;
 import com.eversonrubira.exporttracking.pedido.exception.DocumentoNaoEnviadoException;
 import com.eversonrubira.exporttracking.pedido.web.dto.ReabrirDocumentoRequest;
+import com.eversonrubira.exporttracking.pedido.web.dto.RecusarDocumentoRequest;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -115,5 +116,68 @@ class ChecklistControllerTest {
         mockMvc.perform(patch("/pedidos/PO-0001/documentos/NAO_EXISTE/enviar"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.erro").value("PARAMETRO_INVALIDO"));
+    }
+
+    @Test
+    void recusarRetorna204() throws Exception {
+        doNothing().when(checklistService).recusar("PO-0001", TipoDocumento.INVOICE, "Motivo valido");
+
+        mockMvc.perform(patch("/pedidos/PO-0001/documentos/INVOICE/recusar")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RecusarDocumentoRequest("Motivo valido"))))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void recusarDocumentoNaoEnviadoRetorna409() throws Exception {
+        doThrow(new DocumentoNaoEnviadoException(TipoDocumento.INVOICE))
+                .when(checklistService).recusar("PO-0001", TipoDocumento.INVOICE, "Motivo valido");
+
+        mockMvc.perform(patch("/pedidos/PO-0001/documentos/INVOICE/recusar")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RecusarDocumentoRequest("Motivo valido"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.erro").value("DOCUMENTO_NAO_ENVIADO"));
+    }
+
+    @Test
+    void recusarDocumentoJaAceitoRetorna409() throws Exception {
+        doThrow(new DocumentoJaAceitoException(TipoDocumento.INVOICE))
+                .when(checklistService).recusar("PO-0001", TipoDocumento.INVOICE, "Motivo valido");
+
+        mockMvc.perform(patch("/pedidos/PO-0001/documentos/INVOICE/recusar")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RecusarDocumentoRequest("Motivo valido"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.erro").value("DOCUMENTO_JA_ACEITO"));
+    }
+
+    @Test
+    void recusarSemMotivoRetorna400() throws Exception {
+        mockMvc.perform(patch("/pedidos/PO-0001/documentos/INVOICE/recusar")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RecusarDocumentoRequest(""))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+    }
+
+    @Test
+    void recusarComMotivoSoEspacosRetorna400() throws Exception {
+        mockMvc.perform(patch("/pedidos/PO-0001/documentos/INVOICE/recusar")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RecusarDocumentoRequest("   "))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+    }
+
+    @Test
+    void recusarComMotivoMaiorQue500CaracteresRetorna400() throws Exception {
+        String motivoMuitoLongo = "a".repeat(501);
+
+        mockMvc.perform(patch("/pedidos/PO-0001/documentos/INVOICE/recusar")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RecusarDocumentoRequest(motivoMuitoLongo))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
     }
 }

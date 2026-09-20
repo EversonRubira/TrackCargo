@@ -76,6 +76,14 @@ public class ChecklistDocumento {
         this.aceitoEm = null;
     }
 
+    // Documento volta a pendente - o motivo/data da recusa fica na
+    // PedidoOcorrencia (ChecklistService.recusar), nao aqui: este
+    // registro so guarda o estado atual do documento, o historico de
+    // recusas passadas vive fora dele.
+    void recusar() {
+        this.enviadoEm = null;
+    }
+
     public UUID getId() { return id; }
     public Pedido getPedido() { return pedido; }
     public TipoDocumento getTipoDocumento() { return tipoDocumento; }

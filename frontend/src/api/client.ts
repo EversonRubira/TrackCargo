@@ -121,6 +121,17 @@ export function reabrirDocumento(
   )
 }
 
+export function recusarDocumento(
+  numeroPedido: string,
+  tipo: TipoDocumento,
+  motivo: string,
+): Promise<void> {
+  return request(
+    `/pedidos/${encodeURIComponent(numeroPedido)}/documentos/${tipo}/recusar`,
+    { method: 'PATCH', body: JSON.stringify({ motivo }) },
+  )
+}
+
 export function urlStatusPdf(numeroPedido: string): string {
   return `${API_BASE_URL}/pedidos/${encodeURIComponent(numeroPedido)}/status.pdf`
 }
