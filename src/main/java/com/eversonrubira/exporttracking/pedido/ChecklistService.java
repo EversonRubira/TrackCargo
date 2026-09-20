@@ -8,7 +8,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ChecklistService {
@@ -106,6 +108,20 @@ public class ChecklistService {
     public List<PedidoOcorrencia> buscarRecusas(String numeroPedido, TipoDocumento tipo) {
         return ocorrenciaRepository.findByPedido_NumeroPedidoAndTipoAndTipoDocumentoOrderByOcorridoEmAsc(
                 numeroPedido, TipoOcorrencia.RECUSA_DOCUMENTO, tipo);
+    }
+
+    // Reusa buscarRecusas() pra montar o mapa que o PDF de status
+    // (e a futura automacao de e-mail) precisa - so entram no mapa os
+    // tipos com pelo menos uma recusa registrada.
+    public Map<TipoDocumento, List<PedidoOcorrencia>> buscarRecusasPorDocumento(String numeroPedido) {
+        Map<TipoDocumento, List<PedidoOcorrencia>> recusasPorDocumento = new EnumMap<>(TipoDocumento.class);
+        for (TipoDocumento tipo : TipoDocumento.values()) {
+            List<PedidoOcorrencia> recusas = buscarRecusas(numeroPedido, tipo);
+            if (!recusas.isEmpty()) {
+                recusasPorDocumento.put(tipo, recusas);
+            }
+        }
+        return recusasPorDocumento;
     }
 
     // Sobrecargas usadas pelo Controller - resolvem o documento a partir do

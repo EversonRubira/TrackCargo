@@ -1,6 +1,7 @@
 package com.eversonrubira.exporttracking.pedido.web;
 
 import com.eversonrubira.exporttracking.pedido.ChecklistDocumento;
+import com.eversonrubira.exporttracking.pedido.ChecklistService;
 import com.eversonrubira.exporttracking.pedido.FormaPagamento;
 import com.eversonrubira.exporttracking.pedido.Incoterm;
 import com.eversonrubira.exporttracking.pedido.Pedido;
@@ -26,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -58,6 +60,9 @@ class PedidoControllerTest {
 
     @MockitoBean
     private PedidoSequenciaService pedidoSequenciaService;
+
+    @MockitoBean
+    private ChecklistService checklistService;
 
     private Pedido pedido;
 
@@ -362,7 +367,9 @@ class PedidoControllerTest {
         byte[] pdfFalso = {1, 2, 3};
         when(pedidoService.buscarPorNumero("PO-0001")).thenReturn(pedido);
         when(pedidoService.buscarHistorico("PO-0001")).thenReturn(List.of());
-        when(pdfStatusService.gerar(pedido, List.of())).thenReturn(pdfFalso);
+        when(pedidoService.buscarChecklist("PO-0001")).thenReturn(List.of());
+        when(checklistService.buscarRecusasPorDocumento("PO-0001")).thenReturn(Map.of());
+        when(pdfStatusService.gerar(pedido, List.of(), List.of(), Map.of())).thenReturn(pdfFalso);
 
         mockMvc.perform(get("/pedidos/PO-0001/status.pdf"))
                 .andExpect(status().isOk())

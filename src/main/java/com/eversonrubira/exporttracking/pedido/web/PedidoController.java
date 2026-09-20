@@ -1,11 +1,14 @@
 package com.eversonrubira.exporttracking.pedido.web;
 
 import com.eversonrubira.exporttracking.pedido.ChecklistDocumento;
+import com.eversonrubira.exporttracking.pedido.ChecklistService;
 import com.eversonrubira.exporttracking.pedido.Pedido;
 import com.eversonrubira.exporttracking.pedido.PedidoEstado;
+import com.eversonrubira.exporttracking.pedido.PedidoOcorrencia;
 import com.eversonrubira.exporttracking.pedido.PedidoSequenciaService;
 import com.eversonrubira.exporttracking.pedido.PedidoService;
 import com.eversonrubira.exporttracking.pedido.PedidoTransicao;
+import com.eversonrubira.exporttracking.pedido.TipoDocumento;
 import com.eversonrubira.exporttracking.pedido.pdf.PdfStatusService;
 import com.eversonrubira.exporttracking.pedido.web.dto.AtualizarLogisticaRequest;
 import com.eversonrubira.exporttracking.pedido.web.dto.CriarPedidoRequest;
@@ -28,6 +31,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/pedidos")
@@ -36,12 +40,14 @@ public class PedidoController {
     private final PedidoService pedidoService;
     private final PdfStatusService pdfStatusService;
     private final PedidoSequenciaService pedidoSequenciaService;
+    private final ChecklistService checklistService;
 
     public PedidoController(PedidoService pedidoService, PdfStatusService pdfStatusService,
-                             PedidoSequenciaService pedidoSequenciaService) {
+                             PedidoSequenciaService pedidoSequenciaService, ChecklistService checklistService) {
         this.pedidoService = pedidoService;
         this.pdfStatusService = pdfStatusService;
         this.pedidoSequenciaService = pedidoSequenciaService;
+        this.checklistService = checklistService;
     }
 
     @PostMapping
@@ -104,9 +110,18 @@ public class PedidoController {
 
     @GetMapping(value = "/{numeroPedido}/status.pdf", produces = MediaType.APPLICATION_PDF_VALUE)
     public ResponseEntity<byte[]> statusPdf(@PathVariable String numeroPedido) {
+        // Composicao dos dados do PDF (Pedido + PedidoService + ChecklistService)
+        // repetida aqui por enquanto - quando a automacao de e-mail (backlog v2)
+        // existir, ela vai precisar exatamente dessa mesma composicao antes de
+        // chamar pdfStatusService.gerar(), e ai sim vale extrair pra um metodo
+        // reutilizavel (hoje so tem um chamador, extrair agora seria abstracao
+        // sem fricao real).
         Pedido pedido = pedidoService.buscarPorNumero(numeroPedido);
         List<PedidoTransicao> historico = pedidoService.buscarHistorico(numeroPedido);
-        byte[] pdf = pdfStatusService.gerar(pedido, historico);
+        List<ChecklistDocumento> checklist = pedidoService.buscarChecklist(numeroPedido);
+        Map<TipoDocumento, List<PedidoOcorrencia>> recusasPorDocumento =
+                checklistService.buscarRecusasPorDocumento(numeroPedido);
+        byte[] pdf = pdfStatusService.gerar(pedido, historico, checklist, recusasPorDocumento);
         return ResponseEntity.ok().body(pdf);
     }
 

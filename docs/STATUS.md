@@ -1,8 +1,96 @@
 # Status — TrackCargo
 
 ## Última atualização
-20/set/2026 — Recusa de documento do checklist (branch
-`feature/recusa-documento`)
+20/set/2026 — PDF de status mostra documentos e recusas (branch
+`feature/pdf-status-documentos`)
+
+## PDF de status mostra documentos e recusas
+
+Consumindo a recusa de documento (PR #22, mergeado): o PDF de status
+ao cliente (`GET /pedidos/{numero}/status.pdf`) agora tem uma seção
+"Documentos" logo depois da barra de etapas, com status calculado
+(Pendente/Enviado/Aceito/Recusado, aguardando reenvio) e o motivo de
+cada recusa, em ordem cronológica, mesmo depois de reenviado e
+aceito. **Só backend** — frontend não foi tocado.
+
+**Backend:**
+- `PdfStatusService.gerar(...)` ganhou 2 parâmetros novos: `List<ChecklistDocumento>
+  checklist` e `Map<TipoDocumento, List<PedidoOcorrencia>> recusasPorDocumento`.
+  Continua puro (sem repositório/service injetado).
+- `ChecklistService.buscarRecusasPorDocumento(numeroPedido)` novo —
+  reaproveita `buscarRecusas()` já existente (nenhuma query nova), só
+  entram no mapa os tipos com pelo menos uma recusa.
+- `PedidoController.statusPdf()` ganhou `ChecklistService` no
+  construtor e compõe os 4 dados (pedido/histórico/checklist/recusas)
+  antes de chamar `gerar()` — comentário no código aponta que a
+  futura automação de e-mail vai precisar da mesma composição, e que
+  vale extrair pra um método reutilizável quando isso existir (hoje
+  só tem um chamador).
+- Coluna "Documento" usa rótulos legíveis ("Invoice", "Packing list",
+  "Certificado sanitário" etc.) via `switch` expression **sem
+  `default`** — tipo de documento novo sem rótulo vira erro de
+  compilação. Barra de etapas **não foi alterada** (continua com o
+  nome do enum).
+- Recusas aparecem numa célula com `colspan` total da tabela (não
+  coluna estreita), uma por linha, em ordem cronológica.
+
+**Achado importante durante os testes:** o `PdfTextExtractor` do
+próprio OpenPDF 3.0.5 (e o Apache PDFBox, testado por comparação)
+transforma qualquer acento/cedilha do português em `"?"` ao extrair
+texto de uma fonte padrão não embutida (Helvetica) sem CMap
+`ToUnicode` — confirmado com renderização real (PyMuPDF) que **o PDF
+gerado está correto**, só a extração automatizada que falha. Emoji é
+omitido silenciosamente; caractere de alfabeto não-latino
+(cirílico/CJK) depende de fallback de fonte do sistema operacional
+onde o PDF é gerado (não é garantia da biblioteca). Nenhuma mudança
+de fonte/encoding foi feita em `PdfStatusService` pra "corrigir"
+isso — embutir uma fonte Unicode de verdade resolveria mas é escopo
+maior que esta feature pediu (fica registrado como follow-up). Apache
+PDFBox `3.0.8` entrou como dependência **só de teste** (Apache 2.0,
+não afeta produção) porque é o que os testes usam pra extrair texto
+de forma confiável.
+
+**Testes novos:** `PdfStatusServiceTest` novo (12 testes, PDF real
+gerado e extraído via PDFBox — sem Spring, sem mock): status por
+documento com as datas certas, recusa sobrevivendo a reenvio/aceite,
+duas recusas em ordem, documentos ordenados pelo enum mesmo com lista
+fora de ordem, rótulos legíveis, motivo de 500 caracteres sem
+truncar, motivo com acentos (documenta a limitação de extração acima),
+motivo com emoji/cirílico/CJK (documenta que não trava a geração e o
+resto do texto continua legível, sem travar numa expectativa
+dependente de ambiente), e um teste que gera
+`target/sample-status.pdf` (não commitado) pra avaliação visual.
+`PedidoControllerTest` atualizado pra nova assinatura de `gerar()` +
+mock de `ChecklistService`. `FluxoPedidoE2ETest` (+1): enviar →
+recusar → `GET status.pdf` (motivo aparece) → reenviar → `GET
+status.pdf` de novo (status "Enviado", recusa antiga ainda listada).
+
+## Resultado da suíte completa (mvn test) — 2 rodadas
+**96/96 verde nas duas rodadas** (banco recriado do zero na segunda,
+Flyway sem migration nova nesta feature — mesma V5 da recusa).
+
+Validação visual: PDF de exemplo (`target/sample-status.pdf`, 2
+documentos recusados, um com motivo de 500 caracteres) gerado e
+enviado pro usuário avaliar — renderizado como imagem antes do envio
+pra confirmar layout, espaçamento e quebra de linha da célula
+colspan.
+
+## Estado de saída (PDF de status mostra documentos e recusas)
+Fechado: seção "Documentos" implementada (status calculado, rótulos
+legíveis, recusas com motivo e data em ordem cronológica), suíte
+completa 96/96 em duas rodadas, PDF de exemplo gerado e enviado pro
+usuário, `docs/SPEC.md` atualizado (seção nova, tabela de correlação,
+limitação de extração documentada). PR aberto, aguardando
+revisão/merge — não faço merge sozinho.
+
+**Próximo passo natural (fora de escopo, registrado pra não se
+perder):** se a fricção de extração de acentos virar um problema
+real (ex: outro consumidor automatizado do texto do PDF), a correção
+é embutir uma fonte Unicode de verdade (TrueType + Identity-H) em vez
+da Helvetica padrão — resolve a extração e amplia o alfabeto
+suportado, mas exige bundle de arquivo de fonte no projeto.
+
+---
 
 ## Recusa de documento do checklist
 

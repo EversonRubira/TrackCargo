@@ -3,6 +3,9 @@ package com.eversonrubira.exporttracking.e2e;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -206,6 +209,39 @@ class FluxoPedidoE2ETest {
     }
 
     @Test
+    void statusPdfMostraMotivoDaRecusaEDepoisOStatusEnviadoComARecusaAindaListada() throws Exception {
+        String numeroPedido = novoNumeroPedido();
+        criarPedido(numeroPedido);
+
+        given().pathParam("numero", numeroPedido).pathParam("tipo", "INVOICE")
+                .when().patch("/pedidos/{numero}/documentos/{tipo}/enviar")
+                .then().statusCode(204);
+
+        String motivo = "Invoice com valor divergente do contrato assinado";
+        given().pathParam("numero", numeroPedido).pathParam("tipo", "INVOICE").contentType(ContentType.JSON)
+                .body(corpoRecusar(motivo))
+                .when().patch("/pedidos/{numero}/documentos/{tipo}/recusar")
+                .then().statusCode(204);
+
+        byte[] pdfAposRecusa = statusPdf(numeroPedido);
+        String textoAposRecusa = extrairTexto(pdfAposRecusa);
+        assertThat(textoAposRecusa).contains(motivo);
+        assertThat(textoAposRecusa).contains("Recusado, aguardando reenvio");
+
+        given().pathParam("numero", numeroPedido).pathParam("tipo", "INVOICE")
+                .when().patch("/pedidos/{numero}/documentos/{tipo}/enviar")
+                .then().statusCode(204);
+
+        byte[] pdfAposReenvio = statusPdf(numeroPedido);
+        String textoAposReenvio = extrairTexto(pdfAposReenvio);
+        // Documento voltou a "Enviado" (nao mais "aguardando reenvio"),
+        // mas a recusa antiga continua no historico do PDF - reenvio
+        // nunca apaga pedido_ocorrencia.
+        assertThat(textoAposReenvio).contains(motivo);
+        assertThat(textoAposReenvio.replaceAll("\\s+", " ")).contains("Invoice Enviado");
+    }
+
+    @Test
     void pagamentoSaldoForaDeSequenciaRetorna409NaAPIReal() {
         String numeroPedido = novoNumeroPedido();
         criarPedido(numeroPedido);
@@ -280,5 +316,22 @@ class FluxoPedidoE2ETest {
 
     private String novoNumeroPedido() {
         return "E2E-" + UUID.randomUUID();
+    }
+
+    private byte[] statusPdf(String numeroPedido) {
+        return given().pathParam("numero", numeroPedido)
+                .when().get("/pedidos/{numero}/status.pdf")
+                .then().statusCode(200)
+                .contentType("application/pdf")
+                .extract().asByteArray();
+    }
+
+    // PdfTextExtractor do OpenPDF nao decodifica direito acentos/cedilha
+    // de fontes padrao nao embutidas (ver PdfStatusServiceTest) - Apache
+    // PDFBox (dependencia so de teste) extrai de forma confiavel.
+    private String extrairTexto(byte[] pdf) throws Exception {
+        try (PDDocument documento = Loader.loadPDF(pdf)) {
+            return new PDFTextStripper().getText(documento);
+        }
     }
 }
