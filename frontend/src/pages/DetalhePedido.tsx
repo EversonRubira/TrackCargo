@@ -10,6 +10,7 @@ import {
   confirmarPagamentoSaldo,
   enviarDocumento,
   reabrirDocumento,
+  recusarDocumento,
   transicionar,
   urlStatusPdf,
 } from '../api/client'
@@ -140,6 +141,14 @@ export default function DetalhePedido() {
                     >
                       Aceitar
                     </BotaoAcao>
+                  )}
+                  {doc.enviadoEm && !doc.aceitoEm && (
+                    <BotaoRecusar
+                      disabled={acaoEmCurso}
+                      onConfirmar={(motivo) =>
+                        executar(() => recusarDocumento(numeroPedido, doc.tipoDocumento, motivo))
+                      }
+                    />
                   )}
                   {doc.aceitoEm && (
                     <BotaoReabrir
@@ -288,6 +297,51 @@ function BotaoReabrir({
         disabled={disabled || !motivo}
         onClick={() => {
           onConfirmar(motivo)
+          setAbrindo(false)
+          setMotivo('')
+        }}
+      >
+        Confirmar
+      </BotaoAcao>
+    </span>
+  )
+}
+
+function BotaoRecusar({
+  disabled,
+  onConfirmar,
+}: {
+  disabled?: boolean
+  onConfirmar: (motivo: string) => void
+}) {
+  const [abrindo, setAbrindo] = useState(false)
+  const [motivo, setMotivo] = useState('')
+
+  if (!abrindo) {
+    return (
+      <BotaoAcao variante="perigo" disabled={disabled} onClick={() => setAbrindo(true)}>
+        Recusar
+      </BotaoAcao>
+    )
+  }
+
+  const motivoValido = motivo.trim().length > 0 && motivo.length <= 500
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      <input
+        autoFocus
+        placeholder="Motivo (aparece no PDF do cliente)"
+        value={motivo}
+        maxLength={500}
+        onChange={(e) => setMotivo(e.target.value)}
+        className="input w-56"
+      />
+      <BotaoAcao
+        variante="perigo"
+        disabled={disabled || !motivoValido}
+        onClick={() => {
+          onConfirmar(motivo.trim())
           setAbrindo(false)
           setMotivo('')
         }}
