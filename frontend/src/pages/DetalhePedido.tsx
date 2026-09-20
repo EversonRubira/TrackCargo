@@ -118,10 +118,10 @@ export default function DetalhePedido() {
             {pedido.checklist.map((doc) => (
               <tr key={doc.tipoDocumento} className="border-t border-stone-100">
                 <td className="py-2 font-medium">{doc.tipoDocumento}</td>
-                <td className="py-2">{doc.enviado ? 'Sim' : 'Não'}</td>
-                <td className="py-2">{doc.aceito ? 'Sim' : 'Não'}</td>
+                <td className="py-2">{doc.enviadoEm ? 'Sim' : 'Não'}</td>
+                <td className="py-2">{doc.aceitoEm ? 'Sim' : 'Não'}</td>
                 <td className="space-x-2 py-2">
-                  {!doc.enviado && (
+                  {!doc.enviadoEm && (
                     <BotaoAcao
                       disabled={acaoEmCurso}
                       onClick={() =>
@@ -131,7 +131,7 @@ export default function DetalhePedido() {
                       Enviar
                     </BotaoAcao>
                   )}
-                  {doc.enviado && !doc.aceito && (
+                  {doc.enviadoEm && !doc.aceitoEm && (
                     <BotaoAcao
                       disabled={acaoEmCurso}
                       onClick={() =>
@@ -141,7 +141,7 @@ export default function DetalhePedido() {
                       Aceitar
                     </BotaoAcao>
                   )}
-                  {doc.aceito && (
+                  {doc.aceitoEm && (
                     <BotaoReabrir
                       disabled={acaoEmCurso}
                       onConfirmar={(motivo) =>
