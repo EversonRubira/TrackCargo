@@ -1,11 +1,10 @@
 package com.eversonrubira.exporttracking.pedido;
 
 import com.eversonrubira.exporttracking.pedido.pdf.PdfStatusService;
-import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.openpdf.text.pdf.PdfReader;
+import org.openpdf.text.pdf.parser.PdfTextExtractor;
 
 import java.math.BigDecimal;
 import java.nio.file.Files;
@@ -26,16 +25,19 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 // recusar) pra montar os estados do checklist - mesma razao de
 // ChecklistServiceTest estar aqui.
 //
-// Extracao de texto via Apache PDFBox (dependencia so de teste, ver
-// pom.xml): o PdfTextExtractor do proprio OpenPDF 3.0.5 (e o PDFBox,
-// testado por comparacao) decodificam errado qualquer byte WinAnsi
-// acima de 0x7F de volta pra Unicode quando a fonte e um Type1 padrao
-// nao embutido sem CMap ToUnicode (confirmado comparando com PyMuPDF e
-// com renderizacao visual real do PDF - o documento gerado mostra os
-// acentos corretamente pro leitor humano, so a extracao automatizada
-// que falha). Os testes abaixo que envolvem acento/emoji/alfabeto
-// nao-latino documentam esse limite e verificam o que a extracao
-// garante de fato: sem excecao, resto do texto legivel.
+// Extracao de texto via PdfTextExtractor do proprio OpenPDF (ja e
+// dependencia de producao, nenhuma dependencia nova so pra teste):
+// ele decodifica errado qualquer byte WinAnsi acima de 0x7F de volta
+// pra Unicode quando a fonte e um Type1 padrao nao embutido sem CMap
+// ToUnicode (confirmado comparando com PyMuPDF e com renderizacao
+// visual real do PDF - o documento gerado mostra os acentos
+// corretamente pro leitor humano, so a extracao automatizada que
+// falha; o Apache PDFBox, testado por comparacao antes de decidir
+// isso, tem exatamente a mesma limitacao pra esses caracteres, entao
+// nao ha motivo pra depender dele so pra este teste). Os testes
+// abaixo que envolvem acento/emoji/alfabeto nao-latino documentam
+// esse limite e verificam o que a extracao garante de fato: sem
+// excecao, resto do texto legivel.
 class PdfStatusServiceTest {
 
     private static final DateTimeFormatter FORMATO_DATA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
@@ -340,8 +342,16 @@ class PdfStatusServiceTest {
     }
 
     private String extrairTexto(byte[] pdf) throws Exception {
-        try (PDDocument documento = Loader.loadPDF(pdf)) {
-            return new PDFTextStripper().getText(documento);
+        PdfReader reader = new PdfReader(pdf);
+        try {
+            StringBuilder texto = new StringBuilder();
+            PdfTextExtractor extractor = new PdfTextExtractor(reader);
+            for (int pagina = 1; pagina <= reader.getNumberOfPages(); pagina++) {
+                texto.append(extractor.getTextFromPage(pagina)).append(' ');
+            }
+            return texto.toString();
+        } finally {
+            reader.close();
         }
     }
 }

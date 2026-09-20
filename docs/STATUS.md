@@ -35,23 +35,28 @@ aceito. **Só backend** — frontend não foi tocado.
   coluna estreita), uma por linha, em ordem cronológica.
 
 **Achado importante durante os testes:** o `PdfTextExtractor` do
-próprio OpenPDF 3.0.5 (e o Apache PDFBox, testado por comparação)
-transforma qualquer acento/cedilha do português em `"?"` ao extrair
-texto de uma fonte padrão não embutida (Helvetica) sem CMap
-`ToUnicode` — confirmado com renderização real (PyMuPDF) que **o PDF
-gerado está correto**, só a extração automatizada que falha. Emoji é
-omitido silenciosamente; caractere de alfabeto não-latino
+próprio OpenPDF 3.0.5 transforma qualquer acento/cedilha do português
+em `"?"` ao extrair texto de uma fonte padrão não embutida (Helvetica)
+sem CMap `ToUnicode` — confirmado com renderização real (PyMuPDF) que
+**o PDF gerado está correto**, só a extração automatizada que falha.
+Emoji é omitido silenciosamente; caractere de alfabeto não-latino
 (cirílico/CJK) depende de fallback de fonte do sistema operacional
 onde o PDF é gerado (não é garantia da biblioteca). Nenhuma mudança
 de fonte/encoding foi feita em `PdfStatusService` pra "corrigir"
 isso — embutir uma fonte Unicode de verdade resolveria mas é escopo
-maior que esta feature pediu (fica registrado como follow-up). Apache
-PDFBox `3.0.8` entrou como dependência **só de teste** (Apache 2.0,
-não afeta produção) porque é o que os testes usam pra extrair texto
-de forma confiável.
+maior que esta feature pediu (fica registrado como follow-up).
+
+Cheguei a adicionar o Apache PDFBox como dependência só de teste
+achando que extrairia melhor, mas **comparei os dois extratores no
+mesmo PDF antes de decidir manter isso — PDFBox tem exatamente a
+mesma limitação** (também vira `"?"` pra acento/cedilha). Não
+resolvia nada, então removi a dependência do `pom.xml`: os testes
+usam só o `PdfTextExtractor` do OpenPDF, que já é dependência de
+produção.
 
 **Testes novos:** `PdfStatusServiceTest` novo (12 testes, PDF real
-gerado e extraído via PDFBox — sem Spring, sem mock): status por
+gerado e extraído via `PdfTextExtractor` do OpenPDF — sem Spring, sem
+mock, sem dependência nova): status por
 documento com as datas certas, recusa sobrevivendo a reenvio/aceite,
 duas recusas em ordem, documentos ordenados pelo enum mesmo com lista
 fora de ordem, rótulos legíveis, motivo de 500 caracteres sem

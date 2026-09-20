@@ -112,26 +112,6 @@
             <version>5.5.6</version>
             <scope>test</scope>
         </dependency>
-
-        <!-- So pra teste: o PdfTextExtractor do proprio OpenPDF 3.0.5
-             (org.openpdf.text.pdf.parser) devolve "?" no lugar de
-             qualquer caractere acentuado (a, e, i, o, u, c com acento/
-             cedilha) em fontes padrao nao embutidas - confirmado
-             comparando com PyMuPDF (motor de extracao independente),
-             que le o mesmo PDF corretamente. Ou seja, o PDF gerado
-             esta certo, so o extrator do OpenPDF e que nao decodifica
-             WinAnsi acima de 0x7F de volta pra Unicode. no PdfBox
-             (Apache 2.0, escopo test apenas, nao afeta producao/
-             licenca/runtime) faz a extracao de verdade pros testes
-             confirmarem o motivo/status no texto do PDF - versao 3.0.8
-             conferida via maven-metadata.xml como a mais recente antes
-             de fixar. -->
-        <dependency>
-            <groupId>org.apache.pdfbox</groupId>
-            <artifactId>pdfbox</artifactId>
-            <version>3.0.8</version>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <build>

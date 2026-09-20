@@ -3,11 +3,10 @@ package com.eversonrubira.exporttracking.e2e;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
-import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.openpdf.text.pdf.PdfReader;
+import org.openpdf.text.pdf.parser.PdfTextExtractor;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
@@ -326,12 +325,17 @@ class FluxoPedidoE2ETest {
                 .extract().asByteArray();
     }
 
-    // PdfTextExtractor do OpenPDF nao decodifica direito acentos/cedilha
-    // de fontes padrao nao embutidas (ver PdfStatusServiceTest) - Apache
-    // PDFBox (dependencia so de teste) extrai de forma confiavel.
     private String extrairTexto(byte[] pdf) throws Exception {
-        try (PDDocument documento = Loader.loadPDF(pdf)) {
-            return new PDFTextStripper().getText(documento);
+        PdfReader reader = new PdfReader(pdf);
+        try {
+            StringBuilder texto = new StringBuilder();
+            PdfTextExtractor extractor = new PdfTextExtractor(reader);
+            for (int pagina = 1; pagina <= reader.getNumberOfPages(); pagina++) {
+                texto.append(extractor.getTextFromPage(pagina)).append(' ');
+            }
+            return texto.toString();
+        } finally {
+            reader.close();
         }
     }
 }
