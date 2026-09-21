@@ -364,6 +364,11 @@ function FormularioLogistica({
   const [ciaMaritima, setCiaMaritima] = useState(pedido.ciaMaritima ?? '')
   const [numeroContainer, setNumeroContainer] = useState(pedido.numeroContainer ?? '')
 
+  useEffect(() => {
+    setCiaMaritima(pedido.ciaMaritima ?? '')
+    setNumeroContainer(pedido.numeroContainer ?? '')
+  }, [pedido.ciaMaritima, pedido.numeroContainer])
+
   return (
     <div className="flex flex-wrap items-end gap-4">
       <label className="text-sm">

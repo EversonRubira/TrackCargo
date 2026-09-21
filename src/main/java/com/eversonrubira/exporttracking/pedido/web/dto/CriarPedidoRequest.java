@@ -4,6 +4,7 @@ import com.eversonrubira.exporttracking.pedido.Pedido;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
@@ -38,6 +39,7 @@ public record CriarPedidoRequest(
         String produto,
 
         @NotNull(message = "quantidade e obrigatoria")
+        @Positive(message = "quantidade deve ser maior que zero")
         BigDecimal quantidade,
 
         @NotBlank(message = "unidadeMedida e obrigatoria")

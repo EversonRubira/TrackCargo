@@ -1,8 +1,116 @@
 # Status — TrackCargo
 
 ## Última atualização
-20/set/2026 — PDF de status mostra documentos e recusas (branch
-`feature/pdf-status-documentos`)
+21/set/2026 — Endurecimento de validação de campos, Bloco 1/backend
+concluído (branch `feature/validacao-campos`)
+
+## Endurecimento de validação de campos — Bloco 1 (backend) concluído
+
+Motivação: pedidos aceitavam valores sem sentido (`moeda: "Yen"`,
+`precoAcordado: 1` etc., `numeroContainer: "Plastico"`) — só existia
+validação de presença/tamanho, nunca de domínio/formato. Sem dado de
+produção, só dados de teste locais — endurecido direto, sem migração.
+
+**Backend (detalhes completos em `docs/SPEC.md`, seção "Endurecimento
+de validação de campos"):**
+- `Moeda` (novo enum fechado `USD, EUR, BRL`) substitui `String` livre
+  em `Pedido.moeda`/`CondicoesComerciaisRequest`/`PedidoResponse`
+  (`@Enumerated(EnumType.STRING)`, coluna continua `VARCHAR(3)`).
+- `@Positive` em `quantidade` e `precoAcordado`; `@DecimalMin("0")` +
+  `@DecimalMax("100")` (inclusive) em `percentualParcial`.
+- `Iso6346` (`pedido/validacao/`, classe pura sem Spring) implementa
+  normalização + validação de formato e dígito verificador ISO 6346.
+  `@NumeroContainerIso6346` (Bean Validation) no
+  `AtualizarLogisticaRequest.numeroContainer` chama a mesma classe;
+  `PedidoService.atualizarDadosLogisticos()` normaliza antes de
+  persistir — uma única implementação do algoritmo pras duas partes.
+  Confirmado que só o endpoint de logística edita esse campo (não há
+  duplicação a resolver).
+- Novo `@ExceptionHandler(HttpMessageNotReadableException.class)` em
+  `GlobalExceptionHandler`: cobre enum inválido no body (`"Yen"`) e
+  JSON malformado, gerando a mensagem por campo a partir de
+  `Enum.values()` (ampliar um enum depois não exige tocar no handler)
+  e uma mensagem genérica pra qualquer outro erro de parse — nunca
+  expõe texto interno do Jackson. Mesmo formato de 400 já existente.
+
+**Testes novos:** `Iso6346Test` (8, puro), +12 em `PedidoControllerTest`
+(moeda/incoterm inválidos no body, JSON malformado, `@Positive`,
+faixa de percentual, ISO 6346 no PATCH de logística), +1 em
+`PedidoServiceTest` (normalização persistida), +1 cenário em
+`FluxoPedidoE2ETest` (criar válido, depois cada valor inválido → 400
+na API real). 6 arquivos de teste pré-existentes ajustados só pela
+mudança de tipo de `moeda` (`String` → `Moeda`); 3 números de
+container fixture pré-existentes trocados por valores ISO 6346
+genuinamente válidos (os antigos tinham dígito verificador errado —
+achado pela nova validação, não causado por ela).
+
+## Resultado da suíte completa (mvn test) — 2 rodadas
+**121/121 verde nas duas rodadas** (banco recriado do zero na
+segunda, Flyway sem migration nova nesta feature — schema V1→V5
+inalterado, só validação de aplicação).
+
+**Bloco 1 aprovado com 2 confirmações extras:** os 3 fixtures de
+container corrigidos (dígito verificador ISO 6346 errado) foram
+listados um a um (valor antigo/novo/teste) e `Iso6346Test` ganhou
+`referenciaExternaCsqu3054383ValidoCsqu3054384Invalido` — par de
+referência externa da norma, como literais independentes
+(`CSQU3054383`/`CSQU3054384`), não derivados nem calculados por esta
+implementação.
+
+## Bloco 2 (frontend) concluído
+
+- **`moeda` vira `<select>`** com `USD`/`EUR`/`BRL` (`Moeda`/`MOEDAS`
+  novos em `types.ts`), mesmo padrão de `incoterm`/`formaPagamento` —
+  sem digitação livre, sem duplicar a regra do backend (só restringe
+  a entrada à mesma lista fechada).
+- **`CondicoesComerciaisRequest.moeda`/`PedidoResponse.moeda`**
+  passaram de `string` pro tipo `Moeda` em `types.ts` — reflete o
+  enum Java real, não um campo que o backend nunca mandou.
+- **Campo de container continua texto livre** (não dá pra restringir
+  a um `<select>`, é alfanumérico) — o erro do backend já aparecia no
+  banner existente (`ApiError.message`, mecanismo anterior a esta
+  feature, sem componente novo). Corrigido um bug real exposto por
+  esta feature: `FormularioLogistica` guardava `numeroContainer` em
+  `useState` inicializado só uma vez a partir da prop `pedido`, então
+  depois de salvar um valor em minúsculas/com hífen o campo continuava
+  mostrando o texto bruto digitado, não o valor normalizado que a API
+  de fato gravou. Ganhou um `useEffect` resincronizando o estado local
+  sempre que `pedido.ciaMaritima`/`pedido.numeroContainer` mudam (novo
+  warning oxlint `set-state-in-effect`, mesma categoria dos 2
+  pré-existentes já tolerados no projeto — é o padrão de sincronizar
+  estado local de formulário com uma prop que muda por fetch externo).
+- **Banner de erro**: nenhuma mudança de mecanismo — já exibia
+  `ApiError.message` (o `mensagem` do `ErrorResponse`), que o backend
+  já monta pronto como `"campo: mensagem; campo2: mensagem2"`. Não
+  havia parsing por campo no cliente pra criar nem remover.
+- **`types.ts`**: única mudança de shape foi `moeda: string` →
+  `moeda: Moeda` nos dois DTOs que já tinham esse campo — nada
+  adicionado que o backend não mande de fato.
+
+## Resultado do frontend (tsc/lint/build/test)
+```
+npx tsc -b --force        → sem saída (limpo)
+npm run lint (oxlint)     → 3 warnings set-state-in-effect (2 pré-existentes
+                             + 1 novo do useEffect de sincronização acima,
+                             mesma categoria já tolerada, não corrigidos)
+npm run build             → vite build OK, 97 módulos, sem erro
+npm run test (vitest)     → 2/2 passando (navegacaoNumeroPedido.test.ts,
+                             sem teste novo pra esta feature)
+```
+**Validação visual não foi feita** — não abri navegador nesta sessão;
+confirmar visualmente o `<select>` de moeda e o container normalizado
+reaparecendo no campo fica por conta do usuário.
+
+## Estado de saída (endurecimento de validação de campos — completo)
+Fechado: Bloco 1 (backend) e Bloco 2 (frontend) implementados e
+commitados em `feature/validacao-campos`, suíte backend 121/121 em
+duas rodadas, frontend com `tsc`/`build`/`test` limpos (só warnings
+de lint pré-existentes na mesma categoria). `docs/SPEC.md` atualizado
+nas duas pontas (seção de validação + seção "Criar pedido"/banner de
+erro). PR ainda não aberto — aguardando confirmação do usuário antes
+de abrir.
+
+---
 
 ## PDF de status mostra documentos e recusas
 

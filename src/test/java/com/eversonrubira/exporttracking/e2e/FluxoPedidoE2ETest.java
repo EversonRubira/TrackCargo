@@ -78,12 +78,12 @@ class FluxoPedidoE2ETest {
         // preenchido quando a informacao chegar (ver SPEC.md).
         given().pathParam("numero", numeroPedido).contentType(ContentType.JSON)
                 .body("""
-                        { "ciaMaritima": "Maersk", "numeroContainer": "MSKU1234567" }
+                        { "ciaMaritima": "Maersk", "numeroContainer": "MSCU1234566" }
                         """)
                 .when().patch("/pedidos/{numero}/logistica")
                 .then().statusCode(200)
                 .body("ciaMaritima", equalTo("Maersk"))
-                .body("numeroContainer", equalTo("MSKU1234567"));
+                .body("numeroContainer", equalTo("MSCU1234566"));
 
         given().queryParam("estado", "EMBARCADO")
                 .when().get("/pedidos")
@@ -241,6 +241,38 @@ class FluxoPedidoE2ETest {
     }
 
     @Test
+    void criarPedidoValidoDepoisValoresInvalidosRetorna400NaAPIReal() {
+        String numeroValido = novoNumeroPedido();
+        criarPedido(numeroValido);
+
+        given().contentType(ContentType.JSON)
+                .body(corpoCriacaoComMoedaInvalida(novoNumeroPedido(), "Yen"))
+                .when().post("/pedidos")
+                .then().statusCode(400)
+                .body("erro", equalTo("VALIDACAO_INVALIDA"));
+
+        given().contentType(ContentType.JSON)
+                .body(corpoCriacaoComQuantidade(novoNumeroPedido(), "0"))
+                .when().post("/pedidos")
+                .then().statusCode(400)
+                .body("erro", equalTo("VALIDACAO_INVALIDA"));
+
+        given().contentType(ContentType.JSON)
+                .body(corpoCriacaoComPercentualParcial(novoNumeroPedido(), "101"))
+                .when().post("/pedidos")
+                .then().statusCode(400)
+                .body("erro", equalTo("VALIDACAO_INVALIDA"));
+
+        given().pathParam("numero", numeroValido).contentType(ContentType.JSON)
+                .body("""
+                        { "numeroContainer": "Plastico" }
+                        """)
+                .when().patch("/pedidos/{numero}/logistica")
+                .then().statusCode(400)
+                .body("erro", equalTo("VALIDACAO_INVALIDA"));
+    }
+
+    @Test
     void pagamentoSaldoForaDeSequenciaRetorna409NaAPIReal() {
         String numeroPedido = novoNumeroPedido();
         criarPedido(numeroPedido);
@@ -311,6 +343,48 @@ class FluxoPedidoE2ETest {
                   }
                 }
                 """.formatted(numeroPedido);
+    }
+
+    private String corpoCriacaoComMoedaInvalida(String numeroPedido, String moeda) {
+        return """
+                {
+                  "numeroPedido": "%s", "cliente": "Cliente E2E", "consignee": "Consignee E2E",
+                  "paisDestino": "China", "portoOrigem": "Porto de Santos", "portoDestino": "Porto de Xangai",
+                  "produto": "Carne bovina", "quantidade": 20.000, "unidadeMedida": "TON",
+                  "condicoesComerciais": {
+                    "precoAcordado": 85000.00, "moeda": "%s", "incoterm": "CFR",
+                    "formaPagamento": "TT_ANTECIPADO", "percentualParcial": 30.00
+                  }
+                }
+                """.formatted(numeroPedido, moeda);
+    }
+
+    private String corpoCriacaoComQuantidade(String numeroPedido, String quantidade) {
+        return """
+                {
+                  "numeroPedido": "%s", "cliente": "Cliente E2E", "consignee": "Consignee E2E",
+                  "paisDestino": "China", "portoOrigem": "Porto de Santos", "portoDestino": "Porto de Xangai",
+                  "produto": "Carne bovina", "quantidade": %s, "unidadeMedida": "TON",
+                  "condicoesComerciais": {
+                    "precoAcordado": 85000.00, "moeda": "USD", "incoterm": "CFR",
+                    "formaPagamento": "TT_ANTECIPADO", "percentualParcial": 30.00
+                  }
+                }
+                """.formatted(numeroPedido, quantidade);
+    }
+
+    private String corpoCriacaoComPercentualParcial(String numeroPedido, String percentualParcial) {
+        return """
+                {
+                  "numeroPedido": "%s", "cliente": "Cliente E2E", "consignee": "Consignee E2E",
+                  "paisDestino": "China", "portoOrigem": "Porto de Santos", "portoDestino": "Porto de Xangai",
+                  "produto": "Carne bovina", "quantidade": 20.000, "unidadeMedida": "TON",
+                  "condicoesComerciais": {
+                    "precoAcordado": 85000.00, "moeda": "USD", "incoterm": "CFR",
+                    "formaPagamento": "TT_ANTECIPADO", "percentualParcial": %s
+                  }
+                }
+                """.formatted(numeroPedido, percentualParcial);
     }
 
     private String novoNumeroPedido() {

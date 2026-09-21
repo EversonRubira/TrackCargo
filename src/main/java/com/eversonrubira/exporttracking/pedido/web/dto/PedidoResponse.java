@@ -3,6 +3,7 @@ package com.eversonrubira.exporttracking.pedido.web.dto;
 import com.eversonrubira.exporttracking.pedido.ChecklistDocumento;
 import com.eversonrubira.exporttracking.pedido.FormaPagamento;
 import com.eversonrubira.exporttracking.pedido.Incoterm;
+import com.eversonrubira.exporttracking.pedido.Moeda;
 import com.eversonrubira.exporttracking.pedido.Pedido;
 import com.eversonrubira.exporttracking.pedido.PedidoEstado;
 
@@ -23,7 +24,7 @@ public record PedidoResponse(
         String ciaMaritima,
         String numeroContainer,
         BigDecimal precoAcordado,
-        String moeda,
+        Moeda moeda,
         Incoterm incoterm,
         FormaPagamento formaPagamento,
         BigDecimal percentualParcial,

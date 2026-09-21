@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { ApiError, buscarProximoNumeroSugerido, criarPedido } from '../api/client'
-import { FORMAS_PAGAMENTO, INCOTERMS, type CriarPedidoRequest } from '../api/types'
+import { FORMAS_PAGAMENTO, INCOTERMS, MOEDAS, type CriarPedidoRequest } from '../api/types'
 
 const ESTADO_INICIAL: CriarPedidoRequest = {
   numeroPedido: '',
@@ -15,7 +15,7 @@ const ESTADO_INICIAL: CriarPedidoRequest = {
   unidadeMedida: '',
   condicoesComerciais: {
     precoAcordado: 0,
-    moeda: '',
+    moeda: 'USD',
     incoterm: 'FOB',
     formaPagamento: 'CARTA_CREDITO',
     percentualParcial: 0,
@@ -161,13 +161,19 @@ export default function CriarPedido() {
             />
           </Campo>
           <Campo label="Moeda">
-            <input
-              required
-              placeholder="USD"
+            <select
               value={form.condicoesComerciais.moeda}
-              onChange={(e) => campoComercial('moeda', e.target.value)}
+              onChange={(e) =>
+                campoComercial('moeda', e.target.value as CriarPedidoRequest['condicoesComerciais']['moeda'])
+              }
               className="input"
-            />
+            >
+              {MOEDAS.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
           </Campo>
           <Campo label="Incoterm">
             <select

@@ -61,7 +61,7 @@ class PedidoRepositoryTest {
                 .quantidade(new BigDecimal("1000.00"))
                 .unidadeMedida("TON")
                 .precoAcordado(new BigDecimal("50000.00"))
-                .moeda("USD")
+                .moeda(Moeda.USD)
                 .incoterm(Incoterm.CFR)
                 .formaPagamento(FormaPagamento.TT_ANTECIPADO)
                 .percentualParcial(new BigDecimal("30.00"))

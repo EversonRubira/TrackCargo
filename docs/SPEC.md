@@ -163,9 +163,9 @@ acentos/cedilha.
 | quantidade | NUMERIC(12,2) | NOT NULL |
 | unidade_medida | VARCHAR(10) | NOT NULL (ex: TON, KG) |
 | cia_maritima | VARCHAR(100) | NULL |
-| numero_container | VARCHAR(30) | NULL |
-| preco_acordado | NUMERIC(14,2) | NOT NULL |
-| moeda | VARCHAR(3) | NOT NULL, DEFAULT 'USD' |
+| numero_container | VARCHAR(30) | NULL — quando preenchido, deve ser ISO 6346 válido e vem normalizado (maiúsculas, sem espaços/hífen) — ver "Endurecimento de validação de campos" |
+| preco_acordado | NUMERIC(14,2) | NOT NULL, `@Positive` |
+| moeda | VARCHAR(3) | NOT NULL, DEFAULT 'USD' — mapeado como enum Java fechado `Moeda { USD, EUR, BRL }` desde o endurecimento de validação, coluna continua `VARCHAR(3)` |
 | incoterm | VARCHAR(10) | NOT NULL (V2) — Incoterms 2020 |
 | forma_pagamento | VARCHAR(30) | NOT NULL (V2) |
 | percentual_parcial | NUMERIC(5,2) | NOT NULL (V2) |
@@ -666,6 +666,88 @@ Toda resposta de erro segue corpo padrão:
 | `DocumentoAdicionalJaExisteException` | 409 | `DOCUMENTO_ADICIONAL_JA_EXISTE` |
 | `MethodArgumentNotValidException` (Bean Validation) | 400 | `VALIDACAO_INVALIDA` |
 | `MethodArgumentTypeMismatchException` (ex: `{tipo}` inválido na rota) | 400 | `PARAMETRO_INVALIDO` |
+| `HttpMessageNotReadableException` (corpo JSON malformado ou enum inválido no body, ex: `"moeda": "Yen"`) | 400 | `VALIDACAO_INVALIDA` — ver seção "Endurecimento de validação de campos" abaixo |
+
+## Endurecimento de validação de campos
+
+Motivação: os endpoints de criação/atualização de pedido aceitavam
+valores sem sentido (`moeda: "Yen"`, `precoAcordado: 1` com sinal
+trocado aceito, `numeroContainer: "Plastico"`) porque só existia
+validação de presença/tamanho (`@NotNull`/`@Size`), nunca de
+domínio/formato. Sem dado de produção — só dados de teste locais — o
+endurecimento pôde ser aplicado direto, sem migração de dados.
+
+- **`moeda`: enum fechado `Moeda { USD, EUR, BRL }`** (nova classe,
+  `pedido/Moeda.java`) em vez de `String` livre. `Pedido.moeda`
+  passou de `VARCHAR(3)` livre pra `@Enumerated(EnumType.STRING)` —
+  a coluna continua `VARCHAR(3)` (schema inalterado, só o tipo Java
+  mudou), default `USD` preservado no `Pedido.Builder`. Fechado por
+  decisão de negócio (só os 3 mercados atendidos hoje); ampliar
+  depois é só acrescentar valor ao enum — nenhuma validação própria
+  pra alterar, porque a mensagem de erro (abaixo) já é gerada a
+  partir de `Moeda.values()`.
+- **`quantidade` (`CriarPedidoRequest`) e `precoAcordado`
+  (`CondicoesComerciaisRequest`): `@Positive`** — rejeita zero e
+  negativos.
+- **`percentualParcial`: `@DecimalMin("0")` + `@DecimalMax("100")`**,
+  inclusive nas duas pontas (0 e 100 aceitos). Continua `@NotNull`
+  (campo obrigatório, confirmado no código — não é opcional).
+- **`numeroContainer` (ISO 6346), campo opcional** — só existe depois
+  da reserva do booking, continua podendo vir nulo/vazio tanto na
+  criação (que nem tem esse campo) quanto no PATCH de logística.
+  Quando preenchido, precisa ter o formato ISO 6346 válido (4 letras +
+  6 dígitos + 1 dígito verificador) **e** o dígito verificador
+  correto — não basta o formato.
+  - **`Iso6346` (`pedido/validacao/Iso6346.java`)**: classe pura, sem
+    Spring, com dois métodos estáticos: `normalizar(String)`
+    (maiúsculas, remove espaços e hífens, vazio/nulo vira `null`) e
+    `valido(String normalizado)` (regex de formato + cálculo do
+    dígito verificador: cada letra vale de A=10 a Z=38 pulando todo
+    múltiplo de 11 nessa contagem, cada um dos 10 primeiros
+    caracteres pesa `2^posição`, dígito verificador = `(soma % 11) %
+    10`, ou seja resto 10 vira 0). É a única implementação do
+    algoritmo — tanto a anotação de validação quanto o service que
+    persiste chamam essa mesma classe, então não há duas cópias da
+    regra pra divergir.
+  - **`@NumeroContainerIso6346`** (anotação Bean Validation +
+    `NumeroContainerIso6346Validator`, mesmo pacote): aplicada no
+    campo `numeroContainer` de `AtualizarLogisticaRequest` — hoje o
+    único DTO com esse campo (`numeroContainer` não existe em
+    `CriarPedidoRequest`/`Pedido.Builder`, confirmado antes de
+    implementar; não há duplicação de endpoint a resolver). O
+    validador normaliza via `Iso6346.normalizar()` antes de checar
+    `Iso6346.valido()`; nulo/vazio sempre passa (campo opcional).
+  - **Normalização é responsabilidade do service, não do
+    validador.** `PedidoService.atualizarDadosLogisticos()` chama
+    `Iso6346.normalizar(numeroContainer)` antes de passar pra
+    `Pedido.aplicarDadosLogisticos(...)` — o valor **normalizado** (não
+    o bruto digitado) é o que fica gravado no banco e volta em
+    `PedidoResponse`. Ex.: `"mscu 123456-6"` enviado → `"MSCU1234566"`
+    persistido e devolvido.
+- **`HttpMessageNotReadableException` (novo handler em
+  `GlobalExceptionHandler`)** — cobre o caso que
+  `MethodArgumentNotValidException` não cobre: um enum com valor
+  textual inexistente (`"moeda": "Yen"`) falha na *desserialização*
+  do JSON, antes da árvore de Bean Validation rodar, e sem esse
+  handler o Spring devolveria um 400 genérico com stack trace do
+  Jackson vazando pro cliente. O handler:
+  1. Percorre a cadeia de causas (`getCause()` em loop) até achar uma
+     `tools.jackson.databind.exc.InvalidFormatException` (Jackson 3 —
+     confirmado por inspeção do jar, `getTargetType()` vem de
+     `MismatchedInputException`, o caminho do campo vem de
+     `JacksonException.getPath()`/`Reference.getPropertyName()`, não
+     `getFieldName()` como seria em Jackson 2).
+  2. Se o `targetType` é um enum, monta
+     `"<caminho.do.campo>: valores aceitos sao <lista de
+     Enum.values() unidos por vírgula + 'e' antes do último>"` —
+     a lista sai dinamicamente do enum (`Moeda.values()`,
+     `Incoterm.values()` etc.), então ampliar um enum no futuro não
+     exige tocar neste handler.
+  3. Qualquer outra causa (JSON malformado, campo não identificável)
+     devolve a mensagem genérica `"Corpo da requisicao invalido ou mal
+     formado"` — nunca expõe texto interno do Jackson.
+  Formato de resposta idêntico ao 400 existente (mesmo
+  `ErrorResponse`, `erro: "VALIDACAO_INVALIDA"`).
 
 `ChecklistDocumentoNaoEncontradoException` é nova nesta fase: cobre o
 caso de pedir `enviar`/`aceitar`/`reabrir` pra um `tipo` que não tem
@@ -704,6 +786,14 @@ Agrupamento visual (PRD, seção F02) e o campo do DTO correspondente:
 | Descrição da mercadoria | `produto`, `quantidade`, `unidadeMedida` |
 | Logística | `paisDestino`, `portoOrigem`, `portoDestino` |
 | Condições comerciais | `condicoesComerciais.precoAcordado`, `condicoesComerciais.moeda`, `condicoesComerciais.incoterm`, `condicoesComerciais.formaPagamento`, `condicoesComerciais.percentualParcial` |
+
+**`moeda` é `<select>` com `USD`/`EUR`/`BRL` (`MOEDAS` em
+`types.ts`), sem digitação livre** — mesmo padrão já usado por
+`incoterm`/`formaPagamento`, espelhando o enum fechado `Moeda` do
+backend (ver "Endurecimento de validação de campos"). O frontend não
+duplica a regra de negócio (não valida moeda "aceita" no cliente) —
+só restringe a entrada à mesma lista fechada, o backend continua
+sendo a única fonte de verdade se o enum divergir.
 
 Ao montar a tela, chama `GET /pedidos/proximo-numero` e pré-preenche
 `numeroPedido` com a sugestão (`NNNNN/AAAA` do ano corrente) — campo
@@ -753,6 +843,19 @@ Atualizar dados logísticos não muda estado (não gera transição), mas
 recarrega `GET /pedidos/{numero}` do mesmo jeito — é a única fonte
 dos valores atualizados de `ciaMaritima`/`numeroContainer`.
 
+**Banner de erro exibe `mensagem` do `ErrorResponse` verbatim, sem
+parsing por campo no cliente** — o backend já monta essa string
+pronta ("campo: mensagem; campo2: mensagem2", ver "Endurecimento de
+validação de campos"), então o frontend só precisa mostrar
+`ApiError.message`, mecanismo que já existia antes deste
+endurecimento (nenhum componente de erro novo). `numeroContainer` no
+`FormularioLogistica` (tela de detalhe) ganhou um `useEffect` que
+resincroniza o estado local do input com `pedido.numeroContainer`
+sempre que o pedido recarrega — sem isso, um valor digitado em
+minúsculas/com hífen seria salvo e normalizado no backend, mas o
+campo continuaria mostrando o texto bruto digitado em vez do valor
+normalizado que a API de fato gravou.
+
 ## Tabela de correlação — critério de aceitação × teste
 
 | Critério (do PRD) | Tipo de teste | O que valida |
@@ -800,6 +903,11 @@ dos valores atualizados de `ciaMaritima`/`numeroContainer`.
 | `reservarSeCorresponder()` só avança o contador quando o número criado bate com o sugerido; número manual ou fora de sequência não avança | Unitário + Integração | `PedidoServiceTest.criarGeraChecklistZeradoETransicaoInicial` (verifica a chamada) + `PedidoSequenciaServiceTest.reservarSeCorresponderAvancaContadorQuandoNumeroBateComOSugerido` + `reservarSeCorresponderComNumeroManualForaDoPadraoNaoCriaSequencia` + `reservarSeCorresponderComNumeroDiferenteDoAtualNaoAvancaOContador` |
 | Sequência reseta por ano (anos independentes); duas reservas concorrentes pro mesmo número não colidem (só uma avança) | Integração (Postgres real) | `PedidoSequenciaServiceTest.sequenciaResetaPorAnoDoisAnosAvancamIndependentemente` + `duasReservasSimultaneasParaOMesmoNumeroSoUmaAvancaOContador` |
 | Número de pedido com barra (`NNNNN/AAAA`) navega corretamente (link da lista, redirect pós-criação, chamada de API) | Frontend (Vitest) + manual (`curl`) | `navegacaoNumeroPedido.test.ts` (encode/decode de um único segmento de rota) — confirmado manualmente com `curl` que `GET /pedidos/00001%2F2026` (e `/historico`) retorna 200 após o `WebConfig`/Tomcat `encodedSolidusHandling=passthrough` |
+| ISO 6346 aceita número válido conhecido (dois exemplos distintos); rejeita dígito verificador errado, letras a menos, dígitos a menos e texto fora do formato (`"Plastico"`); `normalizar()` aceita minúsculas/espaço/hífen e devolve maiúsculas sem separador; `normalizar()`/`valido()` tratam nulo/vazio como opcional | Unitário (puro, sem Spring) | `Iso6346Test` (8 testes: `aceitaNumeroValidoConhecido`, `rejeitaDigitoVerificadorErrado`, `rejeitaComLetrasAMenos`, `rejeitaComDigitosAMenos`, `normalizarAceitaMinusculasEspacosEHifen`, `normalizarComNuloOuVazioDevolveNulo`, `validoComNuloDevolveFalso`, `rejeitaTextoQueNaoSegueOFormato`) |
+| `numeroContainer` inválido no PATCH de logística retorna 400 sem chegar ao service; valor normalizado (minúsculas/espaço/hífen) passa na validação; service persiste o valor normalizado, não o bruto | Unitário + API | `PedidoServiceTest.atualizarDadosLogisticosGravaONumeroContainerNormalizado` + `PedidoControllerTest.atualizarLogisticaComNumeroContainerFormatoInvalidoRetorna400` + `atualizarLogisticaComDigitoVerificadorErradoRetorna400` + `atualizarLogisticaComNumeroContainerMinusculoEspacadoEComHifenPassaNaValidacao` |
+| `moeda` fora do enum (`"Yen"`) e outro enum já existente com valor inválido (`incoterm`) retornam 400 com mensagem por campo gerada a partir de `Enum.values()`; JSON malformado sem campo identificável retorna mensagem genérica, sem expor texto interno do Jackson | API | `PedidoControllerTest.moedaInvalidaNoBodyRetorna400ComMensagemPorCampo` + `incotermInvalidoNoBodyRetorna400ComMensagemPorCampo` + `jsonMalformadoRetorna400ComMensagemGenerica` |
+| `quantidade`/`precoAcordado` rejeitam zero e negativos; `percentualParcial` aceita 0 e 100, rejeita -1 e 101 | API | `PedidoControllerTest` — testes de `@Positive` em quantidade/precoAcordado e de faixa em percentualParcial (ver classe pra nomes completos, um teste por caso de fronteira) |
+| Fluxo real: criar pedido válido, depois tentar moeda/quantidade/percentualParcial/numeroContainer inválidos, cada um retornando 400 `VALIDACAO_INVALIDA` na API real | E2E | `FluxoPedidoE2ETest.criarPedidoValidoDepoisValoresInvalidosRetorna400NaAPIReal` |
 
 ## Fora de escopo desta Spec
 

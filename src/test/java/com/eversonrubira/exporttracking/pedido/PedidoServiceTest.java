@@ -57,7 +57,7 @@ class PedidoServiceTest {
                 .quantidade(new BigDecimal("20.000"))
                 .unidadeMedida("TON")
                 .precoAcordado(new BigDecimal("85000.00"))
-                .moeda("USD")
+                .moeda(Moeda.USD)
                 .incoterm(Incoterm.CFR)
                 .formaPagamento(FormaPagamento.TT_ANTECIPADO)
                 .percentualParcial(new BigDecimal("30.00"))
@@ -210,30 +210,41 @@ class PedidoServiceTest {
 
     @Test
     void atualizarDadosLogisticosComOsDoisCamposAtualizaAmbos() {
-        Pedido atualizado = pedidoService.atualizarDadosLogisticos("PO-0001", "Maersk", "MSKU1234567");
+        Pedido atualizado = pedidoService.atualizarDadosLogisticos("PO-0001", "Maersk", "MSCU1234566");
 
         assertThat(atualizado.getCiaMaritima()).isEqualTo("Maersk");
-        assertThat(atualizado.getNumeroContainer()).isEqualTo("MSKU1234567");
+        assertThat(atualizado.getNumeroContainer()).isEqualTo("MSCU1234566");
     }
 
     @Test
     void atualizarDadosLogisticosComSoCiaMaritimaNaoMexeNoContainer() {
-        pedidoService.atualizarDadosLogisticos("PO-0001", "Maersk", "MSKU1234567");
+        pedidoService.atualizarDadosLogisticos("PO-0001", "Maersk", "MSCU1234566");
 
         pedidoService.atualizarDadosLogisticos("PO-0001", "MSC", null);
 
         assertThat(pedido.getCiaMaritima()).isEqualTo("MSC");
-        assertThat(pedido.getNumeroContainer()).isEqualTo("MSKU1234567");
+        assertThat(pedido.getNumeroContainer()).isEqualTo("MSCU1234566");
     }
 
     @Test
     void atualizarDadosLogisticosComSoContainerNaoMexeNaCiaMaritima() {
         pedidoService.atualizarDadosLogisticos("PO-0001", "Maersk", null);
 
-        pedidoService.atualizarDadosLogisticos("PO-0001", null, "MSKU7654321");
+        pedidoService.atualizarDadosLogisticos("PO-0001", null, "TCLU9876543");
 
         assertThat(pedido.getCiaMaritima()).isEqualTo("Maersk");
-        assertThat(pedido.getNumeroContainer()).isEqualTo("MSKU7654321");
+        assertThat(pedido.getNumeroContainer()).isEqualTo("TCLU9876543");
+    }
+
+    @Test
+    void atualizarDadosLogisticosGravaONumeroContainerNormalizado() {
+        // @NumeroContainerIso6346 no DTO ja garante formato/digito
+        // verificador antes de chegar aqui - o service so precisa
+        // normalizar (maiuscula, sem espaco/hifen) igual a anotacao fez
+        // pra validar, usando a mesma classe pura Iso6346.
+        Pedido atualizado = pedidoService.atualizarDadosLogisticos("PO-0001", null, "mscu 123456-6");
+
+        assertThat(atualizado.getNumeroContainer()).isEqualTo("MSCU1234566");
     }
 
     @Test

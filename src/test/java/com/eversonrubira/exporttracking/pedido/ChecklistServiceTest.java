@@ -55,7 +55,7 @@ class ChecklistServiceTest {
                 .quantidade(new BigDecimal("20.000"))
                 .unidadeMedida("TON")
                 .precoAcordado(new BigDecimal("85000.00"))
-                .moeda("USD")
+                .moeda(Moeda.USD)
                 .incoterm(Incoterm.CFR)
                 .formaPagamento(FormaPagamento.TT_ANTECIPADO)
                 .percentualParcial(new BigDecimal("30.00"))

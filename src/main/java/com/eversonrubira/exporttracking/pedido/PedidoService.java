@@ -3,6 +3,7 @@ package com.eversonrubira.exporttracking.pedido;
 import com.eversonrubira.exporttracking.pedido.exception.DocumentoAdicionalJaExisteException;
 import com.eversonrubira.exporttracking.pedido.exception.PedidoNaoEncontradoException;
 import com.eversonrubira.exporttracking.pedido.exception.TransicaoInvalidaException;
+import com.eversonrubira.exporttracking.pedido.validacao.Iso6346;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -118,7 +119,10 @@ public class PedidoService {
     @Transactional
     public Pedido atualizarDadosLogisticos(String numeroPedido, String ciaMaritima, String numeroContainer) {
         Pedido pedido = buscarPorNumero(numeroPedido);
-        pedido.aplicarDadosLogisticos(ciaMaritima, numeroContainer);
+        // Grava a forma normalizada (mesma regra que @NumeroContainerIso6346
+        // ja validou no DTO) - Iso6346.normalizar(null) devolve null, entao
+        // aplicarDadosLogisticos() continua tratando "nao veio" normalmente.
+        pedido.aplicarDadosLogisticos(ciaMaritima, Iso6346.normalizar(numeroContainer));
         return pedido;
     }
 }
