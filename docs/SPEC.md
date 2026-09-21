@@ -787,6 +787,14 @@ Agrupamento visual (PRD, seção F02) e o campo do DTO correspondente:
 | Logística | `paisDestino`, `portoOrigem`, `portoDestino` |
 | Condições comerciais | `condicoesComerciais.precoAcordado`, `condicoesComerciais.moeda`, `condicoesComerciais.incoterm`, `condicoesComerciais.formaPagamento`, `condicoesComerciais.percentualParcial` |
 
+**`moeda` é `<select>` com `USD`/`EUR`/`BRL` (`MOEDAS` em
+`types.ts`), sem digitação livre** — mesmo padrão já usado por
+`incoterm`/`formaPagamento`, espelhando o enum fechado `Moeda` do
+backend (ver "Endurecimento de validação de campos"). O frontend não
+duplica a regra de negócio (não valida moeda "aceita" no cliente) —
+só restringe a entrada à mesma lista fechada, o backend continua
+sendo a única fonte de verdade se o enum divergir.
+
 Ao montar a tela, chama `GET /pedidos/proximo-numero` e pré-preenche
 `numeroPedido` com a sugestão (`NNNNN/AAAA` do ano corrente) — campo
 continua editável normalmente, falha na chamada não impede o cadastro
@@ -834,6 +842,19 @@ verdade e as chamadas são baratas o suficiente pra um único operador.
 Atualizar dados logísticos não muda estado (não gera transição), mas
 recarrega `GET /pedidos/{numero}` do mesmo jeito — é a única fonte
 dos valores atualizados de `ciaMaritima`/`numeroContainer`.
+
+**Banner de erro exibe `mensagem` do `ErrorResponse` verbatim, sem
+parsing por campo no cliente** — o backend já monta essa string
+pronta ("campo: mensagem; campo2: mensagem2", ver "Endurecimento de
+validação de campos"), então o frontend só precisa mostrar
+`ApiError.message`, mecanismo que já existia antes deste
+endurecimento (nenhum componente de erro novo). `numeroContainer` no
+`FormularioLogistica` (tela de detalhe) ganhou um `useEffect` que
+resincroniza o estado local do input com `pedido.numeroContainer`
+sempre que o pedido recarrega — sem isso, um valor digitado em
+minúsculas/com hífen seria salvo e normalizado no backend, mas o
+campo continuaria mostrando o texto bruto digitado em vez do valor
+normalizado que a API de fato gravou.
 
 ## Tabela de correlação — critério de aceitação × teste
 

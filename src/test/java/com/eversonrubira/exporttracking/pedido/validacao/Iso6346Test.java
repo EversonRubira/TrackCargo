@@ -31,6 +31,17 @@ class Iso6346Test {
         assertThat(Iso6346.valido(comDigitoErrado)).isFalse();
     }
 
+    // Par de referencia externa (norma ISO 6346), como literais
+    // independentes desta implementacao - nao derivados de VALIDO_1 nem
+    // calculados por nenhum metodo desta classe: CSQU3054383 (valido,
+    // digito verificador 3) e CSQU3054384 (mesmo prefixo, digito
+    // verificador 4 - invalido).
+    @Test
+    void referenciaExternaCsqu3054383ValidoCsqu3054384Invalido() {
+        assertThat(Iso6346.valido("CSQU3054383")).isTrue();
+        assertThat(Iso6346.valido("CSQU3054384")).isFalse();
+    }
+
     @Test
     void rejeitaComLetrasAMenos() {
         assertThat(Iso6346.valido("CSU3054383")).isFalse(); // 3 letras + 7 digitos, so 10 chars

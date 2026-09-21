@@ -49,6 +49,10 @@ export const TIPOS_DOCUMENTO: TipoDocumento[] = [
   'DOCUMENTO_ADICIONAL',
 ]
 
+export type Moeda = 'USD' | 'EUR' | 'BRL'
+
+export const MOEDAS: Moeda[] = ['USD', 'EUR', 'BRL']
+
 export type Incoterm =
   | 'EXW'
   | 'FCA'
@@ -91,7 +95,7 @@ export const FORMAS_PAGAMENTO: FormaPagamento[] = [
 
 export interface CondicoesComerciaisRequest {
   precoAcordado: number
-  moeda: string
+  moeda: Moeda
   incoterm: Incoterm
   formaPagamento: FormaPagamento
   percentualParcial: number
@@ -144,7 +148,7 @@ export interface PedidoResponse {
   ciaMaritima: string | null
   numeroContainer: string | null
   precoAcordado: number
-  moeda: string
+  moeda: Moeda
   incoterm: Incoterm
   formaPagamento: FormaPagamento
   percentualParcial: number
