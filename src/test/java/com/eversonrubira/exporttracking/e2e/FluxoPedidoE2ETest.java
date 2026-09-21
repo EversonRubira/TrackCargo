@@ -154,8 +154,8 @@ class FluxoPedidoE2ETest {
                 .when().patch("/pedidos/{numero}/transicionar")
                 .then().statusCode(409)
                 .body("erro", equalTo("TRANSICAO_INVALIDA"))
-                .body("estadoAtual", equalTo("CANCELADO"))
-                .body("estadoSolicitado", equalTo("EMBARCADO"));
+                .body("parametros.estadoAtual", equalTo("CANCELADO"))
+                .body("parametros.estadoSolicitado", equalTo("EMBARCADO"));
     }
 
     @Test
@@ -281,8 +281,8 @@ class FluxoPedidoE2ETest {
                 .when().post("/pedidos/{numero}/pagamento-saldo")
                 .then().statusCode(409)
                 .body("erro", equalTo("TRANSICAO_INVALIDA"))
-                .body("estadoAtual", equalTo("CRIADO"))
-                .body("estadoSolicitado", equalTo("PAGAMENTO_SALDO_RECEBIDO"));
+                .body("parametros.estadoAtual", equalTo("CRIADO"))
+                .body("parametros.estadoSolicitado", equalTo("PAGAMENTO_SALDO_RECEBIDO"));
     }
 
     private void transicionar(String numeroPedido, String novoEstado) {

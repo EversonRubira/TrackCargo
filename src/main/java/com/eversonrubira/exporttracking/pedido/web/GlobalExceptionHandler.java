@@ -21,6 +21,7 @@ import tools.jackson.databind.exc.InvalidFormatException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
@@ -29,43 +30,47 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(PedidoNaoEncontradoException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponse tratarPedidoNaoEncontrado(PedidoNaoEncontradoException ex) {
-        return ErrorResponse.de("PEDIDO_NAO_ENCONTRADO", ex.getMessage());
+        return ErrorResponse.deDominio("PEDIDO_NAO_ENCONTRADO", ex.getMessage(),
+                Map.of("numeroPedido", ex.getNumeroPedido()));
     }
 
     @ExceptionHandler(ChecklistDocumentoNaoEncontradoException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponse tratarChecklistDocumentoNaoEncontrado(ChecklistDocumentoNaoEncontradoException ex) {
-        return ErrorResponse.de("CHECKLIST_DOCUMENTO_NAO_ENCONTRADO", ex.getMessage());
+        return ErrorResponse.deDominio("CHECKLIST_DOCUMENTO_NAO_ENCONTRADO", ex.getMessage(),
+                Map.of("numeroPedido", ex.getNumeroPedido(), "tipo", ex.getTipo()));
     }
 
     @ExceptionHandler(TransicaoInvalidaException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorResponse tratarTransicaoInvalida(TransicaoInvalidaException ex) {
-        return new ErrorResponse("TRANSICAO_INVALIDA", ex.getMessage(), ex.getEstadoAtual(), ex.getEstadoSolicitado());
+        return ErrorResponse.deDominio("TRANSICAO_INVALIDA", ex.getMessage(),
+                Map.of("estadoAtual", ex.getEstadoAtual(), "estadoSolicitado", ex.getEstadoSolicitado()));
     }
 
     @ExceptionHandler(DocumentoJaAceitoException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorResponse tratarDocumentoJaAceito(DocumentoJaAceitoException ex) {
-        return ErrorResponse.de("DOCUMENTO_JA_ACEITO", ex.getMessage());
+        return ErrorResponse.deDominio("DOCUMENTO_JA_ACEITO", ex.getMessage(), Map.of("tipo", ex.getTipo()));
     }
 
     @ExceptionHandler(DocumentoNaoEnviadoException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorResponse tratarDocumentoNaoEnviado(DocumentoNaoEnviadoException ex) {
-        return ErrorResponse.de("DOCUMENTO_NAO_ENVIADO", ex.getMessage());
+        return ErrorResponse.deDominio("DOCUMENTO_NAO_ENVIADO", ex.getMessage(), Map.of("tipo", ex.getTipo()));
     }
 
     @ExceptionHandler(DocumentoNaoAceitoException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorResponse tratarDocumentoNaoAceito(DocumentoNaoAceitoException ex) {
-        return ErrorResponse.de("DOCUMENTO_NAO_ACEITO", ex.getMessage());
+        return ErrorResponse.deDominio("DOCUMENTO_NAO_ACEITO", ex.getMessage(), Map.of("tipo", ex.getTipo()));
     }
 
     @ExceptionHandler(DocumentoAdicionalJaExisteException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorResponse tratarDocumentoAdicionalJaExiste(DocumentoAdicionalJaExisteException ex) {
-        return ErrorResponse.de("DOCUMENTO_ADICIONAL_JA_EXISTE", ex.getMessage());
+        return ErrorResponse.deDominio("DOCUMENTO_ADICIONAL_JA_EXISTE", ex.getMessage(),
+                Map.of("numeroPedido", ex.getNumeroPedido()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -75,14 +80,15 @@ public class GlobalExceptionHandler {
                 .sorted(Comparator.comparing(err -> err.getField()))
                 .map(err -> err.getField() + ": " + err.getDefaultMessage())
                 .collect(Collectors.joining("; "));
-        return ErrorResponse.de("VALIDACAO_INVALIDA", mensagem);
+        return ErrorResponse.deValidacao(mensagem, ValidacaoCodigoMapper.paraCampos(ex.getBindingResult()));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse tratarParametroInvalido(MethodArgumentTypeMismatchException ex) {
-        return ErrorResponse.de("PARAMETRO_INVALIDO",
-                "Valor invalido para " + ex.getName() + ": " + ex.getValue());
+        String mensagem = "Valor invalido para " + ex.getName() + ": " + ex.getValue();
+        return ErrorResponse.deDominio("PARAMETRO_INVALIDO", mensagem,
+                Map.of("parametro", ex.getName(), "valor", String.valueOf(ex.getValue())));
     }
 
     // Enum invalido no corpo (ex: "moeda": "Yen") falha na desserializacao do
@@ -90,16 +96,22 @@ public class GlobalExceptionHandler {
     // de MethodArgumentNotValidException acima. Extrai o campo do path do
     // erro e gera a lista de valores aceitos direto do enum (Enum.values()),
     // pra ampliar o enum depois nao exigir tocar aqui. JSON malformado sem
-    // causa de enum identificavel cai na mensagem generica - nunca expoe
-    // texto interno do Jackson (linha/coluna, nome de classe Java etc.).
+    // causa de enum identificavel cai no codigo generico JSON_MALFORMADO -
+    // nunca expoe texto interno do Jackson (linha/coluna, nome de classe Java
+    // etc.) nem em mensagem nem em parametros.
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse tratarCorpoInvalido(HttpMessageNotReadableException ex) {
         InvalidFormatException enumInvalido = causaDeEnumInvalido(ex);
         if (enumInvalido != null) {
-            return ErrorResponse.de("VALIDACAO_INVALIDA", mensagemEnumInvalido(enumInvalido));
+            String campo = campoDoEnumInvalido(enumInvalido);
+            List<String> valoresAceitos = valoresAceitosDoEnum(enumInvalido);
+            String mensagem = mensagemEnumInvalido(campo, valoresAceitos);
+            ErrorResponse.CampoErro campoErro = new ErrorResponse.CampoErro(
+                    campo.isBlank() ? null : campo, "VALOR_ENUM_INVALIDO", Map.of("valoresAceitos", valoresAceitos));
+            return ErrorResponse.deValidacao(mensagem, List.of(campoErro));
         }
-        return ErrorResponse.de("VALIDACAO_INVALIDA", "Corpo da requisicao invalido ou mal formado");
+        return ErrorResponse.de("JSON_MALFORMADO", "Corpo da requisicao invalido ou mal formado");
     }
 
     private InvalidFormatException causaDeEnumInvalido(Throwable ex) {
@@ -115,15 +127,20 @@ public class GlobalExceptionHandler {
         return null;
     }
 
-    private String mensagemEnumInvalido(InvalidFormatException ex) {
-        String campo = ex.getPath().stream()
+    private String campoDoEnumInvalido(InvalidFormatException ex) {
+        return ex.getPath().stream()
                 .map(JacksonException.Reference::getPropertyName)
                 .filter(nome -> nome != null && !nome.isBlank())
                 .collect(Collectors.joining("."));
+    }
 
-        List<String> valoresAceitos = Arrays.stream(ex.getTargetType().getEnumConstants())
+    private List<String> valoresAceitosDoEnum(InvalidFormatException ex) {
+        return Arrays.stream(ex.getTargetType().getEnumConstants())
                 .map(Object::toString)
                 .toList();
+    }
+
+    private String mensagemEnumInvalido(String campo, List<String> valoresAceitos) {
         String mensagem = "valores aceitos sao " + comEGramatical(valoresAceitos);
         return campo.isBlank() ? mensagem : campo + ": " + mensagem;
     }

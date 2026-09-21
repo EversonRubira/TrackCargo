@@ -30,6 +30,10 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -167,18 +171,25 @@ class PedidoControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonInvalido))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
+                .andExpect(jsonPath("$.campos[*].codigo", everyItem(is("OBRIGATORIO"))))
+                .andExpect(jsonPath("$.campos[*].campo", hasItem("numeroPedido")));
     }
 
     @Test
-    void criarComMoedaInvalidaRetorna400ComMensagemPorCampoListandoOEnum() throws Exception {
+    void criarComMoedaInvalidaRetorna400ComCodigoGranularListandoOEnum() throws Exception {
         mockMvc.perform(post("/pedidos")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(corpoComMoeda("Yen")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
                 .andExpect(jsonPath("$.mensagem").value(
-                        "condicoesComerciais.moeda: valores aceitos sao USD, EUR e BRL"));
+                        "condicoesComerciais.moeda: valores aceitos sao USD, EUR e BRL"))
+                .andExpect(jsonPath("$.campos", hasSize(1)))
+                .andExpect(jsonPath("$.campos[0].campo").value("condicoesComerciais.moeda"))
+                .andExpect(jsonPath("$.campos[0].codigo").value("VALOR_ENUM_INVALIDO"))
+                .andExpect(jsonPath("$.campos[0].parametros.valoresAceitos",
+                        org.hamcrest.Matchers.contains("USD", "EUR", "BRL")));
     }
 
     @Test
@@ -189,11 +200,12 @@ class PedidoControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(corpoComMoeda("usd")))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
+                .andExpect(jsonPath("$.campos[0].codigo").value("VALOR_ENUM_INVALIDO"));
     }
 
     @Test
-    void criarComIncotermInvalidoRetorna400ComMensagemPorCampoListandoOEnum() throws Exception {
+    void criarComIncotermInvalidoRetorna400ComCodigoGranularListandoOEnum() throws Exception {
         // Mesmo handler (HttpMessageNotReadableException) cobrindo um enum
         // que ja existia antes desta feature - prova que a solucao nao e
         // hardcoded pra Moeda.
@@ -204,11 +216,15 @@ class PedidoControllerTest {
                 .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
                 .andExpect(jsonPath("$.mensagem").value(
                         "condicoesComerciais.incoterm: valores aceitos sao "
-                                + "EXW, FCA, FAS, FOB, CFR, CIF, CPT, CIP, DAP, DPU e DDP"));
+                                + "EXW, FCA, FAS, FOB, CFR, CIF, CPT, CIP, DAP, DPU e DDP"))
+                .andExpect(jsonPath("$.campos[0].campo").value("condicoesComerciais.incoterm"))
+                .andExpect(jsonPath("$.campos[0].codigo").value("VALOR_ENUM_INVALIDO"))
+                .andExpect(jsonPath("$.campos[0].parametros.valoresAceitos", org.hamcrest.Matchers.contains(
+                        "EXW", "FCA", "FAS", "FOB", "CFR", "CIF", "CPT", "CIP", "DAP", "DPU", "DDP")));
     }
 
     @Test
-    void criarComJsonMalformadoRetorna400ComMensagemGenericaSemTextoInternoDoJackson() throws Exception {
+    void criarComJsonMalformadoRetorna400ComCodigoProprioSemTextoInternoDoJackson() throws Exception {
         String jsonQuebrado = """
                 { "numeroPedido": "PO-0001", "cliente":
                 """;
@@ -217,8 +233,9 @@ class PedidoControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonQuebrado))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
-                .andExpect(jsonPath("$.mensagem").value("Corpo da requisicao invalido ou mal formado"));
+                .andExpect(jsonPath("$.erro").value("JSON_MALFORMADO"))
+                .andExpect(jsonPath("$.mensagem").value("Corpo da requisicao invalido ou mal formado"))
+                .andExpect(jsonPath("$.campos").doesNotExist());
     }
 
     @Test
@@ -230,7 +247,9 @@ class PedidoControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
+                .andExpect(jsonPath("$.campos[0].campo").value("quantidade"))
+                .andExpect(jsonPath("$.campos[0].codigo").value("POSITIVO"));
     }
 
     @Test
@@ -242,7 +261,8 @@ class PedidoControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
+                .andExpect(jsonPath("$.campos[0].codigo").value("POSITIVO"));
     }
 
     @Test
@@ -254,7 +274,9 @@ class PedidoControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
+                .andExpect(jsonPath("$.campos[0].campo").value("condicoesComerciais.precoAcordado"))
+                .andExpect(jsonPath("$.campos[0].codigo").value("POSITIVO"));
     }
 
     @Test
@@ -266,7 +288,27 @@ class PedidoControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
+                .andExpect(jsonPath("$.campos[0].codigo").value("POSITIVO"));
+    }
+
+    @Test
+    void criarComNumeroPedidoAcimaDoTamanhoMaximoRetorna400() throws Exception {
+        CriarPedidoRequest request = new CriarPedidoRequest(
+                "P".repeat(51), "Cliente Teste", "Consignee Teste", "China",
+                "Porto de Santos", "Porto de Xangai", "Carne bovina",
+                new BigDecimal("20.000"), "TON",
+                new CondicoesComerciaisRequest(
+                        new BigDecimal("85000.00"), Moeda.USD, Incoterm.CFR,
+                        FormaPagamento.TT_ANTECIPADO, new BigDecimal("30.00")));
+
+        mockMvc.perform(post("/pedidos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.campos[0].campo").value("numeroPedido"))
+                .andExpect(jsonPath("$.campos[0].codigo").value("TAMANHO_MAXIMO"))
+                .andExpect(jsonPath("$.campos[0].parametros.max").value(50));
     }
 
     @Test
@@ -304,7 +346,11 @@ class PedidoControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
+                .andExpect(jsonPath("$.campos[0].campo").value("condicoesComerciais.percentualParcial"))
+                .andExpect(jsonPath("$.campos[0].codigo").value("FORA_DA_FAIXA"))
+                .andExpect(jsonPath("$.campos[0].parametros.min").value(0))
+                .andExpect(jsonPath("$.campos[0].parametros.max").value(100));
     }
 
     @Test
@@ -316,7 +362,10 @@ class PedidoControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
+                .andExpect(jsonPath("$.campos[0].codigo").value("FORA_DA_FAIXA"))
+                .andExpect(jsonPath("$.campos[0].parametros.min").value(0))
+                .andExpect(jsonPath("$.campos[0].parametros.max").value(100));
     }
 
     @Test
@@ -339,7 +388,8 @@ class PedidoControllerTest {
 
         mockMvc.perform(get("/pedidos/PO-9999"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.erro").value("PEDIDO_NAO_ENCONTRADO"));
+                .andExpect(jsonPath("$.erro").value("PEDIDO_NAO_ENCONTRADO"))
+                .andExpect(jsonPath("$.parametros.numeroPedido").value("PO-9999"));
     }
 
     @Test
@@ -372,8 +422,8 @@ class PedidoControllerTest {
                                 new TransicionarRequest(PedidoEstado.EMBARCADO))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.erro").value("TRANSICAO_INVALIDA"))
-                .andExpect(jsonPath("$.estadoAtual").value("CRIADO"))
-                .andExpect(jsonPath("$.estadoSolicitado").value("EMBARCADO"));
+                .andExpect(jsonPath("$.parametros.estadoAtual").value("CRIADO"))
+                .andExpect(jsonPath("$.parametros.estadoSolicitado").value("EMBARCADO"));
     }
 
     @Test
@@ -382,7 +432,9 @@ class PedidoControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
+                .andExpect(jsonPath("$.campos[0].campo").value("novoEstado"))
+                .andExpect(jsonPath("$.campos[0].codigo").value("OBRIGATORIO"));
     }
 
     @Test
@@ -543,7 +595,9 @@ class PedidoControllerTest {
                                 { "numeroContainer": "Plastico" }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
+                .andExpect(jsonPath("$.campos[0].campo").value("numeroContainer"))
+                .andExpect(jsonPath("$.campos[0].codigo").value("CONTAINER_ISO6346_INVALIDO"));
 
         verify(pedidoService, org.mockito.Mockito.never()).atualizarDadosLogisticos(any(), any(), any());
     }
@@ -556,7 +610,8 @@ class PedidoControllerTest {
                                 { "numeroContainer": "MSCU1234569" }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
+                .andExpect(jsonPath("$.campos[0].codigo").value("CONTAINER_ISO6346_INVALIDO"));
     }
 
     @Test

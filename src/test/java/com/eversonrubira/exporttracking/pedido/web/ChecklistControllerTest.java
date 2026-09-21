@@ -49,7 +49,8 @@ class ChecklistControllerTest {
 
         mockMvc.perform(patch("/pedidos/PO-0001/documentos/INVOICE/enviar"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.erro").value("DOCUMENTO_JA_ACEITO"));
+                .andExpect(jsonPath("$.erro").value("DOCUMENTO_JA_ACEITO"))
+                .andExpect(jsonPath("$.parametros.tipo").value("INVOICE"));
     }
 
     @Test
@@ -59,7 +60,9 @@ class ChecklistControllerTest {
 
         mockMvc.perform(patch("/pedidos/PO-0001/documentos/DOCUMENTO_ADICIONAL/enviar"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.erro").value("CHECKLIST_DOCUMENTO_NAO_ENCONTRADO"));
+                .andExpect(jsonPath("$.erro").value("CHECKLIST_DOCUMENTO_NAO_ENCONTRADO"))
+                .andExpect(jsonPath("$.parametros.numeroPedido").value("PO-0001"))
+                .andExpect(jsonPath("$.parametros.tipo").value("DOCUMENTO_ADICIONAL"));
     }
 
     @Test
@@ -77,7 +80,8 @@ class ChecklistControllerTest {
 
         mockMvc.perform(patch("/pedidos/PO-0001/documentos/INVOICE/aceitar"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.erro").value("DOCUMENTO_NAO_ENVIADO"));
+                .andExpect(jsonPath("$.erro").value("DOCUMENTO_NAO_ENVIADO"))
+                .andExpect(jsonPath("$.parametros.tipo").value("INVOICE"));
     }
 
     @Test
@@ -99,7 +103,8 @@ class ChecklistControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new ReabrirDocumentoRequest("Motivo valido"))))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.erro").value("DOCUMENTO_NAO_ACEITO"));
+                .andExpect(jsonPath("$.erro").value("DOCUMENTO_NAO_ACEITO"))
+                .andExpect(jsonPath("$.parametros.tipo").value("INVOICE"));
     }
 
     @Test
@@ -108,14 +113,18 @@ class ChecklistControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new ReabrirDocumentoRequest(""))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
+                .andExpect(jsonPath("$.campos[0].campo").value("motivo"))
+                .andExpect(jsonPath("$.campos[0].codigo").value("OBRIGATORIO"));
     }
 
     @Test
     void tipoDocumentoInvalidoNaRotaRetorna400() throws Exception {
         mockMvc.perform(patch("/pedidos/PO-0001/documentos/NAO_EXISTE/enviar"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erro").value("PARAMETRO_INVALIDO"));
+                .andExpect(jsonPath("$.erro").value("PARAMETRO_INVALIDO"))
+                .andExpect(jsonPath("$.parametros.parametro").value("tipo"))
+                .andExpect(jsonPath("$.parametros.valor").value("NAO_EXISTE"));
     }
 
     @Test
@@ -137,7 +146,8 @@ class ChecklistControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new RecusarDocumentoRequest("Motivo valido"))))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.erro").value("DOCUMENTO_NAO_ENVIADO"));
+                .andExpect(jsonPath("$.erro").value("DOCUMENTO_NAO_ENVIADO"))
+                .andExpect(jsonPath("$.parametros.tipo").value("INVOICE"));
     }
 
     @Test
@@ -149,7 +159,8 @@ class ChecklistControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new RecusarDocumentoRequest("Motivo valido"))))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.erro").value("DOCUMENTO_JA_ACEITO"));
+                .andExpect(jsonPath("$.erro").value("DOCUMENTO_JA_ACEITO"))
+                .andExpect(jsonPath("$.parametros.tipo").value("INVOICE"));
     }
 
     @Test
@@ -158,7 +169,9 @@ class ChecklistControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new RecusarDocumentoRequest(""))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
+                .andExpect(jsonPath("$.campos[0].campo").value("motivo"))
+                .andExpect(jsonPath("$.campos[0].codigo").value("OBRIGATORIO"));
     }
 
     @Test
@@ -167,7 +180,8 @@ class ChecklistControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new RecusarDocumentoRequest("   "))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
+                .andExpect(jsonPath("$.campos[0].codigo").value("OBRIGATORIO"));
     }
 
     @Test
@@ -178,6 +192,9 @@ class ChecklistControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new RecusarDocumentoRequest(motivoMuitoLongo))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
+                .andExpect(jsonPath("$.campos[0].campo").value("motivo"))
+                .andExpect(jsonPath("$.campos[0].codigo").value("TAMANHO_MAXIMO"))
+                .andExpect(jsonPath("$.campos[0].parametros.max").value(500));
     }
 }

@@ -646,27 +646,157 @@ o valor de cada `@PathVariable` depois de já ter casado o segmento, daí
 manualmente com `curl` (`GET`, incluindo a rota aninhada `/historico`)
 antes e depois do ajuste — 400 sem o customizer, 200 com ele.
 
-Toda resposta de erro segue corpo padrão:
+Toda resposta de erro segue corpo padrão (contrato v2, ver
+"Contrato de erro — i18n-infra Bloco 1" abaixo pra por que mudou):
 ```json
-{ "erro": "TRANSICAO_INVALIDA", "mensagem": "...", "estadoAtual": "...", "estadoSolicitado": "..." }
+{ "erro": "...", "mensagem": "...", "parametros": { }, "campos": [ ] }
 ```
-`estadoAtual`/`estadoSolicitado` só são preenchidos pra
-`TransicaoInvalidaException`; nos demais casos ficam `null`.
+`mensagem` é texto de depuração em PT — não é mais o contrato que o
+cliente traduz (isso passou a ser `erro`/`campos[].codigo` +
+`parametros`, ver mais abaixo). `parametros` carrega os dados de um
+erro de domínio (ex: `numeroPedido`, `tipo`, `estadoAtual`/
+`estadoSolicitado`); `campos` carrega os erros de validação, um item
+por campo inválido. Os dois ficam `null` quando não se aplicam ao
+tipo de erro (nunca os dois preenchidos ao mesmo tempo).
 
 ### Mapeamento de exceção → status HTTP (`GlobalExceptionHandler`)
 
-| Exceção | HTTP | `erro` |
+| Exceção | HTTP | `erro` | `parametros` |
+|---|---|---|---|
+| `PedidoNaoEncontradoException` | 404 | `PEDIDO_NAO_ENCONTRADO` | `{numeroPedido}` |
+| `ChecklistDocumentoNaoEncontradoException` | 404 | `CHECKLIST_DOCUMENTO_NAO_ENCONTRADO` | `{numeroPedido, tipo}` |
+| `TransicaoInvalidaException` | 409 | `TRANSICAO_INVALIDA` | `{estadoAtual, estadoSolicitado}` |
+| `DocumentoJaAceitoException` | 409 | `DOCUMENTO_JA_ACEITO` — reusada por `enviar()`, `aceitar()` e `recusar()` (V5) | `{tipo}` |
+| `DocumentoNaoEnviadoException` | 409 | `DOCUMENTO_NAO_ENVIADO` — reusada por `aceitar()` e `recusar()` (V5) | `{tipo}` |
+| `DocumentoNaoAceitoException` | 409 | `DOCUMENTO_NAO_ACEITO` | `{tipo}` |
+| `DocumentoAdicionalJaExisteException` | 409 | `DOCUMENTO_ADICIONAL_JA_EXISTE` | `{numeroPedido}` |
+| `MethodArgumentNotValidException` (Bean Validation) | 400 | `VALIDACAO_INVALIDA` | `null` — granularidade vai em `campos[]` |
+| `MethodArgumentTypeMismatchException` (ex: `{tipo}` inválido na rota) | 400 | `PARAMETRO_INVALIDO` | `{parametro, valor}` |
+| `HttpMessageNotReadableException` — enum inválido no body (ex: `"moeda": "Yen"`) | 400 | `VALIDACAO_INVALIDA` | `null` — vai em `campos[0]` com código `VALOR_ENUM_INVALIDO` |
+| `HttpMessageNotReadableException` — JSON malformado sem campo identificável | 400 | `JSON_MALFORMADO` | `null` |
+
+## Contrato de erro — i18n-infra Bloco 1
+
+Motivação (PRD de i18n, pt-BR/en/es): o front vai traduzir os erros
+pelo código, não pelo texto — mas o código geral `VALIDACAO_INVALIDA`
+sozinho não diferencia "quantidade negativa" de "percentual fora da
+faixa". Bloco 1 granularizou isso **só no contrato do backend**
+(nenhuma tradução ainda — isso é Bloco 3, frontend). `mensagem`
+continua existindo (texto de depuração em PT, log/debug), mas deixou
+de ser o que o cliente exibe.
+
+### `ErrorResponse` (shape novo, substitui o anterior)
+
+```java
+public record ErrorResponse(
+    String erro,
+    String mensagem,
+    Map<String, Object> parametros,
+    List<CampoErro> campos
+) {
+    public record CampoErro(String campo, String codigo, Map<String, Object> parametros) {}
+}
+```
+
+**Mudança de shape que quebra compatibilidade:** os campos top-level
+`estadoAtual`/`estadoSolicitado` (só usados por `TRANSICAO_INVALIDA`)
+foram removidos e dobrados dentro de `parametros`
+(`{"estadoAtual": "...", "estadoSolicitado": "..."}`) — evita duas
+formas de representar o mesmo dado. Nenhum consumidor real dependia
+deles ainda (confirmado por grep no frontend antes da mudança — só o
+texto `mensagem` era exibido).
+
+### Códigos de validação (`campos[].codigo`)
+
+| Código | Quando dispara | `parametros` |
 |---|---|---|
-| `PedidoNaoEncontradoException` | 404 | `PEDIDO_NAO_ENCONTRADO` |
-| `ChecklistDocumentoNaoEncontradoException` | 404 | `CHECKLIST_DOCUMENTO_NAO_ENCONTRADO` |
-| `TransicaoInvalidaException` | 409 | `TRANSICAO_INVALIDA` |
-| `DocumentoJaAceitoException` | 409 | `DOCUMENTO_JA_ACEITO` — reusada por `enviar()`, `aceitar()` e `recusar()` (V5) |
-| `DocumentoNaoEnviadoException` | 409 | `DOCUMENTO_NAO_ENVIADO` — reusada por `aceitar()` e `recusar()` (V5) |
-| `DocumentoNaoAceitoException` | 409 | `DOCUMENTO_NAO_ACEITO` |
-| `DocumentoAdicionalJaExisteException` | 409 | `DOCUMENTO_ADICIONAL_JA_EXISTE` |
-| `MethodArgumentNotValidException` (Bean Validation) | 400 | `VALIDACAO_INVALIDA` |
-| `MethodArgumentTypeMismatchException` (ex: `{tipo}` inválido na rota) | 400 | `PARAMETRO_INVALIDO` |
-| `HttpMessageNotReadableException` (corpo JSON malformado ou enum inválido no body, ex: `"moeda": "Yen"`) | 400 | `VALIDACAO_INVALIDA` — ver seção "Endurecimento de validação de campos" abaixo |
+| `OBRIGATORIO` | `@NotNull`/`@NotBlank` | `{}` |
+| `POSITIVO` | `@Positive` | `{}` |
+| `FORA_DA_FAIXA` | `@FaixaDecimal` (substitui `@DecimalMin`+`@DecimalMax`, ver abaixo) | `{min, max}` (números, não texto) |
+| `TAMANHO_MAXIMO` | `@Size` | `{max}` |
+| `CONTAINER_ISO6346_INVALIDO` | `@NumeroContainerIso6346` | `{}` |
+| `VALOR_ENUM_INVALIDO` | enum inválido no corpo JSON (ex: `"moeda": "Yen"`) | `{valoresAceitos: [...]}` |
+
+`JSON_MALFORMADO` e `PARAMETRO_INVALIDO` são códigos de erro **gerais**
+(`erro`, não `campos[].codigo`) — ver tabela de mapeamento acima.
+
+### Mapeamento anotação → código (`ValidacaoCodigoMapper`, pacote `pedido.web`)
+
+Ponto único: `CODIGO_POR_ANOTACAO` (`Map<String, CodigoInfo>`, chave =
+nome simples da anotação Bean Validation, obtido via
+`FieldError.unwrap(ConstraintViolation.class)` +
+`getConstraintDescriptor().getAnnotation().annotationType().getSimpleName()`
+— não via `FieldError.getCode()`, que devolve o código *mais
+específico* do `MessageCodesResolver`, não o nome puro da anotação).
+`CodigoInfo` guarda o código e a lista de atributos que viram
+`parametros` (ex: `Size` → `["max"]`) — a extração dos valores é
+genérica a partir de `ConstraintDescriptor.getAttributes()`, sem
+`if/else` por anotação. Anotação sem entrada no mapa cai em
+`VALIDACAO_INVALIDA` (fallback, com log de aviso) em vez de quebrar.
+`ValidacaoCodigoMapperTest` varre por reflexão as anotações usadas
+nos DTOs e falha se alguma ficar sem entrada — trava o esquecimento
+antes de virar bug em produção.
+
+### `@FaixaDecimal` (substitui `@DecimalMin`+`@DecimalMax`)
+
+Mesmo padrão de `@NumeroContainerIso6346` (constraint + validator
+dedicados, sem depender de mais nada do Spring). Motivo de existir:
+`@DecimalMin`/`@DecimalMax` disparam **um de cada vez** (só o limite
+violado gera `FieldError`) — o mapeamento genérico só conseguiria
+extrair `min` OU `max`, nunca os dois juntos, e o código
+`FORA_DA_FAIXA` promete os dois sempre completos. Uma anotação só,
+com os dois limites como atributos próprios, resolve isso sem
+tratamento especial no mapeador. `null` é válido (obrigatoriedade é
+do `@NotNull` no mesmo campo, sem duplicar a checagem); faixa
+inclusiva nos dois extremos.
+
+### Exemplos reais (evidência capturada da API rodando)
+
+Validação com dois campos inválidos:
+```json
+{
+  "erro": "VALIDACAO_INVALIDA",
+  "mensagem": "condicoesComerciais.percentualParcial: percentualParcial deve estar entre 0 e 100; quantidade: quantidade deve ser maior que zero",
+  "parametros": null,
+  "campos": [
+    { "campo": "condicoesComerciais.percentualParcial", "codigo": "FORA_DA_FAIXA", "parametros": { "min": 0.0, "max": 100.0 } },
+    { "campo": "quantidade", "codigo": "POSITIVO", "parametros": {} }
+  ]
+}
+```
+
+`TRANSICAO_INVALIDA`:
+```json
+{
+  "erro": "TRANSICAO_INVALIDA",
+  "mensagem": "Transicao invalida de CRIADO para PAGAMENTO_SALDO_RECEBIDO",
+  "parametros": { "estadoAtual": "CRIADO", "estadoSolicitado": "PAGAMENTO_SALDO_RECEBIDO" },
+  "campos": null
+}
+```
+
+Enum inválido no corpo:
+```json
+{
+  "erro": "VALIDACAO_INVALIDA",
+  "mensagem": "condicoesComerciais.moeda: valores aceitos sao USD, EUR e BRL",
+  "parametros": null,
+  "campos": [
+    { "campo": "condicoesComerciais.moeda", "codigo": "VALOR_ENUM_INVALIDO", "parametros": { "valoresAceitos": ["USD", "EUR", "BRL"] } }
+  ]
+}
+```
+
+### Exceções de domínio ganham dados próprios
+
+As 6 exceções que carregavam dado só na mensagem interpolada
+(`PedidoNaoEncontradoException`, `ChecklistDocumentoNaoEncontradoException`,
+`DocumentoJaAceitoException`, `DocumentoNaoEnviadoException`,
+`DocumentoNaoAceitoException`, `DocumentoAdicionalJaExisteException`)
+ganharam campo + getter pro mesmo dado que já recebiam no construtor
+(`numeroPedido`/`tipo`) — é o que `GlobalExceptionHandler` usa pra
+montar `parametros`. `TransicaoInvalidaException` já tinha os getters
+(`getEstadoAtual()`/`getEstadoSolicitado()`), só não usava um mapa.
 
 ## Endurecimento de validação de campos
 
@@ -689,9 +819,15 @@ endurecimento pôde ser aplicado direto, sem migração de dados.
 - **`quantidade` (`CriarPedidoRequest`) e `precoAcordado`
   (`CondicoesComerciaisRequest`): `@Positive`** — rejeita zero e
   negativos.
-- **`percentualParcial`: `@DecimalMin("0")` + `@DecimalMax("100")`**,
+- **`percentualParcial`: `@FaixaDecimal(min = 0, max = 100)`**,
   inclusive nas duas pontas (0 e 100 aceitos). Continua `@NotNull`
   (campo obrigatório, confirmado no código — não é opcional).
+  Originalmente era `@DecimalMin("0")` + `@DecimalMax("100")`;
+  substituído no Bloco 1 do i18n-infra (ver seção "Contrato de erro"
+  abaixo) porque as duas anotações disparam uma de cada vez — o
+  código granular `FORA_DA_FAIXA` precisa de `{min, max}` sempre
+  completos, e duas anotações separadas só entregam o limite que
+  falhou.
 - **`numeroContainer` (ISO 6346), campo opcional** — só existe depois
   da reserva do booking, continua podendo vir nulo/vazio tanto na
   criação (que nem tem esse campo) quanto no PATCH de logística.
@@ -905,7 +1041,9 @@ normalizado que a API de fato gravou.
 | Número de pedido com barra (`NNNNN/AAAA`) navega corretamente (link da lista, redirect pós-criação, chamada de API) | Frontend (Vitest) + manual (`curl`) | `navegacaoNumeroPedido.test.ts` (encode/decode de um único segmento de rota) — confirmado manualmente com `curl` que `GET /pedidos/00001%2F2026` (e `/historico`) retorna 200 após o `WebConfig`/Tomcat `encodedSolidusHandling=passthrough` |
 | ISO 6346 aceita número válido conhecido (dois exemplos distintos); rejeita dígito verificador errado, letras a menos, dígitos a menos e texto fora do formato (`"Plastico"`); `normalizar()` aceita minúsculas/espaço/hífen e devolve maiúsculas sem separador; `normalizar()`/`valido()` tratam nulo/vazio como opcional | Unitário (puro, sem Spring) | `Iso6346Test` (8 testes: `aceitaNumeroValidoConhecido`, `rejeitaDigitoVerificadorErrado`, `rejeitaComLetrasAMenos`, `rejeitaComDigitosAMenos`, `normalizarAceitaMinusculasEspacosEHifen`, `normalizarComNuloOuVazioDevolveNulo`, `validoComNuloDevolveFalso`, `rejeitaTextoQueNaoSegueOFormato`) |
 | `numeroContainer` inválido no PATCH de logística retorna 400 sem chegar ao service; valor normalizado (minúsculas/espaço/hífen) passa na validação; service persiste o valor normalizado, não o bruto | Unitário + API | `PedidoServiceTest.atualizarDadosLogisticosGravaONumeroContainerNormalizado` + `PedidoControllerTest.atualizarLogisticaComNumeroContainerFormatoInvalidoRetorna400` + `atualizarLogisticaComDigitoVerificadorErradoRetorna400` + `atualizarLogisticaComNumeroContainerMinusculoEspacadoEComHifenPassaNaValidacao` |
-| `moeda` fora do enum (`"Yen"`) e outro enum já existente com valor inválido (`incoterm`) retornam 400 com mensagem por campo gerada a partir de `Enum.values()`; JSON malformado sem campo identificável retorna mensagem genérica, sem expor texto interno do Jackson | API | `PedidoControllerTest.moedaInvalidaNoBodyRetorna400ComMensagemPorCampo` + `incotermInvalidoNoBodyRetorna400ComMensagemPorCampo` + `jsonMalformadoRetorna400ComMensagemGenerica` |
+| `moeda` fora do enum (`"Yen"`) e outro enum já existente com valor inválido (`incoterm`) retornam 400 com código `VALOR_ENUM_INVALIDO` e `valoresAceitos` gerado a partir de `Enum.values()`; JSON malformado sem campo identificável retorna `erro: JSON_MALFORMADO`, sem expor texto interno do Jackson | API | `PedidoControllerTest.criarComMoedaInvalidaRetorna400ComCodigoGranularListandoOEnum` + `criarComIncotermInvalidoRetorna400ComCodigoGranularListandoOEnum` + `criarComJsonMalformadoRetorna400ComCodigoProprioSemTextoInternoDoJackson` |
+| Cada anotação de validação usada nos DTOs tem código granular mapeado em um lugar só (`ValidacaoCodigoMapper`); `@Size` sem `message=` sai como `TAMANHO_MAXIMO` com `max` correto; `@Positive` como `POSITIVO`; `@FaixaDecimal` como `FORA_DA_FAIXA` com `{min, max}` sempre completos (0/100 aceitos, -0.01/100.01 rejeitados); anotação sem entrada no mapa nunca passa despercebida | Unitário + API | `ValidacaoCodigoMapperTest.todaAnotacaoDeValidacaoUsadaNosDtosTemEntradaNoMapeador` + `PedidoControllerTest.criarComNumeroPedidoAcimaDoTamanhoMaximoRetorna400` + `criarComQuantidadeZeroRetorna400`/`criarComQuantidadeNegativaRetorna400` + `criarComPercentualParcialNegativoRetorna400`/`criarComPercentualParcialAcimaDeCemRetorna400` + `ChecklistControllerTest.recusarComMotivoMaiorQue500CaracteresRetorna400` |
+| Exceções de domínio (`PEDIDO_NAO_ENCONTRADO`, `CHECKLIST_DOCUMENTO_NAO_ENCONTRADO`, `DOCUMENTO_JA_ACEITO`, `DOCUMENTO_NAO_ENVIADO`, `DOCUMENTO_NAO_ACEITO`, `DOCUMENTO_ADICIONAL_JA_EXISTE`, `TRANSICAO_INVALIDA`) devolvem `parametros` com os dados da exceção; `PARAMETRO_INVALIDO` (path variable inválida) devolve `{parametro, valor}` | API + Unitário | `PedidoControllerTest.buscarPorNumeroInexistenteRetorna404` + `transicionarComEstadoInvalidoRetorna409` + `ChecklistControllerTest.enviarDocumentoJaAceitoRetorna409` + `enviarDocumentoInexistenteRetorna404` + `aceitarDocumentoNaoEnviadoRetorna409` + `reabrirDocumentoNaoAceitoRetorna409` + `recusarDocumentoNaoEnviadoRetorna409` + `recusarDocumentoJaAceitoRetorna409` + `tipoDocumentoInvalidoNaRotaRetorna400` + `GlobalExceptionHandlerTest.tratarDocumentoAdicionalJaExistePreencheParametrosComNumeroPedido` (sem endpoint REST próprio, testado direto no handler) |
 | `quantidade`/`precoAcordado` rejeitam zero e negativos; `percentualParcial` aceita 0 e 100, rejeita -1 e 101 | API | `PedidoControllerTest` — testes de `@Positive` em quantidade/precoAcordado e de faixa em percentualParcial (ver classe pra nomes completos, um teste por caso de fronteira) |
 | Fluxo real: criar pedido válido, depois tentar moeda/quantidade/percentualParcial/numeroContainer inválidos, cada um retornando 400 `VALIDACAO_INVALIDA` na API real | E2E | `FluxoPedidoE2ETest.criarPedidoValidoDepoisValoresInvalidosRetorna400NaAPIReal` |
 
