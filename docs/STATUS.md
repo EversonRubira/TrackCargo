@@ -1,15 +1,45 @@
 # Status — TrackCargo
 
 ## Última atualização
-21/set/2026 — i18n-infra Bloco 2 (PDF multilíngue) concluído, branch
-`feature/i18n-infra` (requisito irrevogável: pt-BR/en/es)
+21/set/2026 — i18n-infra Bloco 2b (padrão de data explícito por
+idioma) concluído, branch `feature/i18n-infra` (requisito
+irrevogável: pt-BR/en/es)
+
+## i18n-infra — Bloco 2b (padrão de data explícito) concluído
+
+Ajuste pedido antes de liberar o Bloco 3: o Bloco 2 usava
+`DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)`, que
+delega ao dado de locale CLDR do JDK em execução — não é garantia
+nossa, pode mudar de versão pra versão. Trocado por um **padrão
+explícito guardado no próprio bundle** (chave `formato.data`):
+`pt`/`es` = `dd/MM/yyyy HH:mm`, `en` = `dd MMM yyyy HH:mm` (mês
+abreviado, sem a ambiguidade dia/mês do formato numérico puro em
+inglês). O `Locale` só decide o nome do mês (`MMM`) quando o padrão
+usa letras — não afeta `pt`/`es`, que são 100% numéricos.
+
+`PdfStatusMessagesParityTest` cobre a chave nova automaticamente (o
+teste compara `keySet()` dos 3 bundles, sem lista de chaves
+hardcoded). Teste novo `PdfStatusServiceTest.dataFixaFormatadaComPadraoExplicitoPorIdiomaSemDependerDoLocaleDaJvm`
+usa uma data fixa (`LocalDateTime.of(2026, 9, 21, 14, 34)`, não
+`now()`) comparada contra a string exata esperada nos 3 idiomas —
+testa o mecanismo (`ResourceBundle` + `DateTimeFormatter.ofPattern`)
+diretamente, não através de `ChecklistDocumento`/`PedidoTransicao`,
+porque nenhuma dessas entidades tem construtor pra data fixa (ambas
+usam `LocalDateTime.now()` internamente).
+
+**Confirmação pedida — contagem de `@Size` sem `message=` (Bloco 2):**
+eram **12**, não 13 (a contagem de 13 do Bloco 0 incluía 2 linhas de
+comentário que o grep pegou por engano, já corrigido na resposta do
+Bloco 1). Nenhum dos 12 já tinha `message=` antes — confirmado via
+`git show` do commit anterior ao Bloco 2 (`81c1b45`), grep no arquivo
+inteiro de cada DTO.
 
 ## i18n-infra — Bloco 2 (PDF multilíngue) concluído
 
 Segundo bloco da internacionalização (Bloco 1, contrato de erro
-granular por código, já aprovado — ver seção abaixo). Este bloco:
-só backend, só o PDF de status. Nenhum texto de interface do
-frontend foi tocado ainda (isso é Bloco 3).
+granular por código, já aprovado). Este bloco: só backend, só o PDF
+de status. Nenhum texto de interface do frontend foi tocado ainda
+(isso é Bloco 3).
 
 **Acréscimo de manutenção incluído neste bloco:** os 12 `@Size` sem
 `message=` (gap do Bloco 0/1 — caíam no texto padrão do Hibernate
@@ -31,89 +61,120 @@ multilíngue"):**
   a Fase 4/F03 sempre mostrou `PedidoEstado.name()` cru).
   `chaveEstado(PedidoEstado)`/`chaveDocumento(TipoDocumento)`: `switch`
   sem `default`, estado/tipo novo sem chave vira erro de compilação.
-- Datas via `DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale)`,
-  sem padrão fixo (era `ofPattern("dd/MM/yyyy HH:mm")`).
+- Datas via padrão explícito por idioma (`formato.data` no bundle) —
+  ver Bloco 2b acima pra por que substituiu `ofLocalizedDateTime`.
 - `PdfStatusMessagesParityTest` novo: compara `keySet()` dos 3
   bundles, trava chave esquecida num idioma antes de virar
   `MissingResourceException` em produção.
 
-**Testes novos:** `PdfStatusServiceTest` (+3: geração nos 3 idiomas
-com rótulos-chave, idioma desconhecido cai em `pt`, selo de
-cancelamento traduzido) — os 13 testes existentes migrados pra nova
-assinatura de `gerar()` (parâmetro `idioma`) e pro formatador de data
-por locale (`FORMATO_DATA` do teste agora é o mesmo
-`ofLocalizedDateTime` que o service usa pra `pt`, não mais um padrão
-fixo hardcoded em paralelo). `PdfStatusMessagesParityTest` novo (1).
+**Testes novos:** `PdfStatusServiceTest` (+4 com o Bloco 2b: geração
+nos 3 idiomas com rótulos-chave, idioma desconhecido cai em `pt`,
+selo de cancelamento traduzido, data fixa com padrão explícito) — os
+13 testes existentes migrados pra nova assinatura de `gerar()`
+(parâmetro `idioma`). `PdfStatusMessagesParityTest` novo (1).
 `PedidoControllerTest` (+1: `?lang=` repassado ao service).
 
-## Resultado da suíte completa (mvn test) — 2 rodadas
-**130/130 verde nas duas rodadas** (banco recriado do zero na
-segunda, Flyway sem migration nova nesta feature).
+## Resultado da suíte completa (mvn test) — 2 rodadas (Bloco 2b)
+```
+Rodada 1: Tests run: 131, Failures: 0, Errors: 0, Skipped: 0 — BUILD SUCCESS
+Rodada 2 (banco recriado do zero): Tests run: 131, Failures: 0, Errors: 0, Skipped: 0 — BUILD SUCCESS
+```
 
-## Evidência real — PDF gerado nos 3 idiomas (pedido real, via API rodando)
+## Evidência real — segunda metade do PDF (status calculado, recusa, selo de cancelado)
 
-Texto extraído de cada PDF (`PO-PDF-I18N`, estado `CRIADO`,
-`GET /status.pdf?lang={pt,en,es}`):
+Dois pedidos reais via API rodando: `PO-EVID-MIX` (INVOICE recusado
+com motivo, PACKING_LIST aceito, BL enviado, CERTIFICADO_SANITARIO
+pendente) e `PO-EVID-CANCEL` (transicionado pra `CANCELADO`). Texto
+extraído (PyMuPDF) de cada `GET /status.pdf?lang={pt,en,es}`:
 
 ```
-=== pt ===
-Status do pedido PO-PDF-I18N
-Cliente: Cliente Teste
-Desde: 21/09/2026 14:34
-Criado
-Documentação enviada
-Documentação aceita
-Pagamento parcial recebido
-Embarcado
-Pagamento de saldo recebido
-Documentos originais enviados
-Entregue
+=== mix pt ===
+Desde: 21/09/2026 14:48
 Documento / Status / Último envio / Aceito em
+Invoice
+Recusado, aguardando reenvio -
+-
+Recusado em 21/09/2026 14:48 (envio de 21/09/2026 14:48): Assinatura do responsavel ausente na ultima pagina
+Packing list
+Aceito
+21/09/2026 14:48
+21/09/2026 14:48
+BL
+Enviado
+21/09/2026 14:48
+-
+Certificado sanitário
+Pendente
+-
+-
 
-=== en ===
-Order status PO-PDF-I18N
-Customer: Cliente Teste
-Since: 9/21/26, 2:34 PM
-Created
-Documentation sent
-Documentation accepted
-Partial payment received
-Shipped
-Balance payment received
-Original documents sent
-Delivered
+=== mix en ===
+Since: 21 Sep 2026 14:48
 Document / Status / Last shipped / Accepted on
+Invoice
+Rejected, awaiting resend
+-
+-
+Rejected on 21 Sep 2026 14:48 (sent on 21 Sep 2026 14:48): Assinatura do responsavel ausente na ultima pagina
+Packing list
+Accepted
+21 Sep 2026 14:48
+21 Sep 2026 14:48
+BL
+Shipped
+21 Sep 2026 14:48
+-
+Sanitary certificate
+Pending
+-
+-
 
-=== es ===
-Estado del pedido PO-PDF-I18N
-Cliente: Cliente Teste
-Desde: 21/9/26, 14:34
-Creado
-Documentación enviada
-Documentación aceptada
-Pago parcial recibido
-Embarcado
-Pago de saldo recibido
-Documentos originales enviados
-Entregado
+=== mix es ===
+Desde: 21/09/2026 14:48
 Documento / Estado / Último envío / Aceptado el
+Factura
+Rechazado, esperando reenvío -
+-
+Rechazado el 21/09/2026 14:48 (enviado el 21/09/2026 14:48): Assinatura do responsavel ausente na ultima pagina
+Lista de empaque
+Aceptado
+21/09/2026 14:48
+21/09/2026 14:48
+BL
+Enviado
+21/09/2026 14:48
+-
+Certificado sanitario
+Pendiente
+-
+-
+
+=== cancel pt ===  PEDIDO CANCELADO
+=== cancel en ===  ORDER CANCELLED
+=== cancel es ===  PEDIDO CANCELADO
 ```
 
-Confirmado: os 3 idiomas geram PDF válido (verificado com `file`,
-1 página cada), com título, rótulos, os 8 estados da barra de
-progresso (dos 9 de `PedidoEstado` — `CANCELADO` não entra na barra,
-tem selo próprio, testado à parte) e datas formatadas por locale —
-`pt` reproduziu o mesmo formato `dd/MM/yyyy HH:mm` de antes por
-coincidência de dado de locale do JDK, `en`/`es` saíram em formatos
-distintos e corretos pra cada convenção regional.
+Rótulos `Cliente:`/`Consignee:`/`Produto:`/`Incoterm:` (pt),
+`Customer:`/`Consignee:`/`Product:`/`Incoterm:` (en),
+`Cliente:`/`Consignee:`/`Producto:`/`Incoterm:` (es) confirmados nos
+6 PDFs (`Consignee`/`Incoterm` não traduzem — nomes técnicos do
+comércio exterior, iguais nos 3 idiomas por design). **Confirmado
+também: o motivo da recusa (texto livre, digitado em PT pelo
+usuário) não é traduzido em nenhum idioma** — comportamento correto,
+texto livre nunca é traduzido (regra que vale desde já e será
+reforçada no Bloco 3 pro frontend). A data (`21/09/2026 14:48`
+pt/es, `21 Sep 2026 14:48` en) confirma o padrão explícito do Bloco
+2b funcionando em produção, não só no teste unitário.
 
-## Estado de saída (i18n-infra Bloco 2)
+## Estado de saída (i18n-infra Bloco 2 + 2b)
 Fechado: PDF de status multilíngue, endpoint com `?lang=`, gap dos
 rótulos de estado resolvido, `@Size` com mensagem de depuração em PT,
-suíte 130/130 em duas rodadas, `docs/SPEC.md` atualizado. Commit em
-`feature/i18n-infra`, ainda sem push/PR — aguardando confirmação
-antes do Bloco 3 (frontend: i18next, tradução de erros por código,
-Intl pra data/número/moeda, remoção de todo texto fixo de interface).
+padrão de data explícito por idioma (não mais dependente de
+`ofLocalizedDateTime`/CLDR do JDK), suíte 131/131 em duas rodadas,
+`docs/SPEC.md` atualizado. Commit em `feature/i18n-infra`, ainda sem
+push/PR — aguardando confirmação antes do Bloco 3 (frontend:
+i18next, tradução de erros por código, Intl pra data/número/moeda,
+remoção de todo texto fixo de interface).
 
 ---
 

@@ -570,12 +570,21 @@ front traduzir). `PdfStatusService.gerar(...)` ganhou um parâmetro
   `chaveDocumento(TipoDocumento)` (ex-`rotulo(TipoDocumento)`) —
   `switch` expression **sem `default`**, estado novo sem chave vira
   erro de compilação.
-- **Datas via `DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale)`**,
-  sem padrão fixo — substituiu o `DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")`
-  anterior. Confirmado no JDK deste projeto (dados de locale CLDR):
-  `pt` coincide com o padrão antigo (`21/09/2026 14:34`), `en` e `es`
-  saem em formatos distintos e corretos pra cada convenção regional
-  (ver evidência real no `docs/STATUS.md`).
+- **Datas via padrão explícito por idioma, guardado no próprio bundle
+  (`formato.data`)** — `DateTimeFormatter.ofPattern(textos.getString("formato.data"), locale)`,
+  chamado por `pt`/`es` (`dd/MM/yyyy HH:mm`) e `en` (`dd MMM yyyy HH:mm`,
+  mês abreviado — evita a ambiguidade dia/mês do formato numérico
+  puro em inglês). O `Locale` só entra pra escrever o nome do mês no
+  idioma certo quando o padrão usa letras (`MMM`), não afeta `pt`/`es`
+  (padrão 100% numérico). **Substituiu `DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)`**
+  (tentativa inicial, Bloco 2): esse método delega ao dado de locale
+  CLDR do JDK em execução, que não é garantia nossa e pode mudar de
+  versão pra versão — o padrão explícito no bundle é a mesma
+  informação que qualquer outro rótulo traduzido, sob o mesmo
+  mecanismo de paridade de chaves (`PdfStatusMessagesParityTest`
+  cobre `formato.data` também, sem tratamento especial). Confirmado
+  com data fixa (não `LocalDateTime.now()`) contra a string exata
+  esperada nos 3 idiomas — ver evidência real no `docs/STATUS.md`.
 - **Templates com parâmetro via `MessageFormat.format(...)`** (título
   "Status do pedido {0}", "Desde: {0}", recusa "Recusado em {0} (envio
   de {1}): {2}") — únicas 3 chaves com `{n}`; o resto são rótulos
@@ -1106,7 +1115,7 @@ normalizado que a API de fato gravou.
 | Exceções de domínio (`PEDIDO_NAO_ENCONTRADO`, `CHECKLIST_DOCUMENTO_NAO_ENCONTRADO`, `DOCUMENTO_JA_ACEITO`, `DOCUMENTO_NAO_ENVIADO`, `DOCUMENTO_NAO_ACEITO`, `DOCUMENTO_ADICIONAL_JA_EXISTE`, `TRANSICAO_INVALIDA`) devolvem `parametros` com os dados da exceção; `PARAMETRO_INVALIDO` (path variable inválida) devolve `{parametro, valor}` | API + Unitário | `PedidoControllerTest.buscarPorNumeroInexistenteRetorna404` + `transicionarComEstadoInvalidoRetorna409` + `ChecklistControllerTest.enviarDocumentoJaAceitoRetorna409` + `enviarDocumentoInexistenteRetorna404` + `aceitarDocumentoNaoEnviadoRetorna409` + `reabrirDocumentoNaoAceitoRetorna409` + `recusarDocumentoNaoEnviadoRetorna409` + `recusarDocumentoJaAceitoRetorna409` + `tipoDocumentoInvalidoNaRotaRetorna400` + `GlobalExceptionHandlerTest.tratarDocumentoAdicionalJaExistePreencheParametrosComNumeroPedido` (sem endpoint REST próprio, testado direto no handler) |
 | `quantidade`/`precoAcordado` rejeitam zero e negativos; `percentualParcial` aceita 0 e 100, rejeita -1 e 101 | API | `PedidoControllerTest` — testes de `@Positive` em quantidade/precoAcordado e de faixa em percentualParcial (ver classe pra nomes completos, um teste por caso de fronteira) |
 | Fluxo real: criar pedido válido, depois tentar moeda/quantidade/percentualParcial/numeroContainer inválidos, cada um retornando 400 `VALIDACAO_INVALIDA` na API real | E2E | `FluxoPedidoE2ETest.criarPedidoValidoDepoisValoresInvalidosRetorna400NaAPIReal` |
-| PDF de status gerado nos 3 idiomas (pt/en/es) com rótulos, título, cabeçalhos de tabela e status calculado traduzidos; os 9 estados de `PedidoEstado` têm rótulo legível (não mais `name()` cru); idioma desconhecido cai no padrão `pt` sem lançar exceção; selo de pedido cancelado traduzido | Unitário (PDF real) | `PdfStatusServiceTest.geraPdfNosTresIdiomasComRotulosTraduzidos` + `idiomaDesconhecidoCaiNoPadraoPt` + `seloDePedidoCanceladoSaiTraduzidoNosTresIdiomas` |
+| PDF de status gerado nos 3 idiomas (pt/en/es) com rótulos, título, cabeçalhos de tabela e status calculado traduzidos; os 9 estados de `PedidoEstado` têm rótulo legível (não mais `name()` cru); idioma desconhecido cai no padrão `pt` sem lançar exceção; selo de pedido cancelado traduzido; data fixa formatada com padrão explícito por idioma (`dd/MM/yyyy HH:mm` pt/es, `dd MMM yyyy HH:mm` en), sem depender do locale da JVM | Unitário (PDF real) | `PdfStatusServiceTest.geraPdfNosTresIdiomasComRotulosTraduzidos` + `idiomaDesconhecidoCaiNoPadraoPt` + `seloDePedidoCanceladoSaiTraduzidoNosTresIdiomas` + `dataFixaFormatadaComPadraoExplicitoPorIdiomaSemDependerDoLocaleDaJvm` |
 | As chaves dos 3 arquivos de mensagens do PDF (`pdf-status-messages_{pt,en,es}.properties`) são idênticas — nenhuma chave esquecida num idioma | Unitário | `PdfStatusMessagesParityTest.asTresChavesDeMensagensSaoIdenticasEmPtEnEEs` |
 | `GET /pedidos/{numero}/status.pdf?lang=` repassa o idioma pro service (default `pt` quando omitido) | API | `PedidoControllerTest.gerarPdfStatusRetorna200ComContentTypePdf` (default) + `gerarPdfStatusComLangRepassaIdiomaParaOService` |
 

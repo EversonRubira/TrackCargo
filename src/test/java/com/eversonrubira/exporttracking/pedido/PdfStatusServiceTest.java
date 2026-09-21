@@ -11,7 +11,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.FormatStyle;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -42,11 +41,11 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 // excecao, resto do texto legivel.
 class PdfStatusServiceTest {
 
-    // Mesmo formatador que o service usa pra "pt" (ofLocalizedDateTime,
-    // sem padrao fixo desde a internacionalizacao do PDF) - alinhado ao
-    // dado real gerado, nao a um padrao hardcoded que pode divergir.
+    // Mesmo padrao explicito que o bundle "pt" declara em formato.data
+    // (dd/MM/yyyy HH:mm) - alinhado ao dado real gerado, nao um
+    // palpite hardcoded em paralelo que pode divergir.
     private static final DateTimeFormatter FORMATO_DATA =
-            DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(Locale.of("pt"));
+            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm", Locale.of("pt"));
     private static final String IDIOMA_PADRAO = "pt";
 
     private final PdfStatusService service = new PdfStatusService();
@@ -274,6 +273,36 @@ class PdfStatusServiceTest {
                 .contains("Customer:").contains("Pending").contains("Created");
         assertThat(textoEs).contains("Estado del pedido").contains("Documentos")
                 .contains("Cliente:").contains("Pendiente").contains("Creado");
+    }
+
+    @Test
+    void dataFixaFormatadaComPadraoExplicitoPorIdiomaSemDependerDoLocaleDaJvm() {
+        // Testa o mecanismo de formatacao diretamente com uma data fixa
+        // (nao LocalDateTime.now()), com a mesma construcao que
+        // PdfStatusService.gerar() usa internamente: pattern explicito
+        // lido do bundle (chave formato.data) + DateTimeFormatter.ofPattern(pattern, locale).
+        // Nao passa pelos objetos de dominio (ChecklistDocumento/
+        // PedidoTransicao) porque nenhum deles tem construtor pra data
+        // fixa - todos usam LocalDateTime.now() internamente, entao nao
+        // da pra fixar o valor exibido no PDF por esse caminho. O que
+        // importa aqui e provar que o PADRAO (nao o dado) e explicito
+        // por idioma e nao depende do locale default da JVM nem dos
+        // dados CLDR de ofLocalizedDateTime, que podem mudar de uma
+        // versao do JDK pra outra.
+        LocalDateTime dataFixa = LocalDateTime.of(2026, 9, 21, 14, 34);
+
+        for (String idioma : List.of("pt", "en", "es")) {
+            var bundle = java.util.ResourceBundle.getBundle("i18n.pdf-status-messages", Locale.of(idioma));
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(bundle.getString("formato.data"), Locale.of(idioma));
+            String formatado = dataFixa.format(formatter);
+
+            switch (idioma) {
+                case "pt" -> assertThat(formatado).isEqualTo("21/09/2026 14:34");
+                case "es" -> assertThat(formatado).isEqualTo("21/09/2026 14:34");
+                case "en" -> assertThat(formatado).isEqualTo("21 Sep 2026 14:34");
+                default -> throw new IllegalStateException("idioma nao coberto pelo teste: " + idioma);
+            }
+        }
     }
 
     @Test

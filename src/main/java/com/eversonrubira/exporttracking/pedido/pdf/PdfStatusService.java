@@ -21,7 +21,6 @@ import java.io.ByteArrayOutputStream;
 import java.text.MessageFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.FormatStyle;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -65,7 +64,13 @@ public class PdfStatusService {
                          Map<TipoDocumento, List<PedidoOcorrencia>> recusasPorDocumento, String idioma) {
         Locale locale = localeDoIdioma(idioma);
         ResourceBundle textos = ResourceBundle.getBundle(BASE_NAME, locale);
-        DateTimeFormatter dataFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale);
+        // Padrao explicito por idioma (chave "formato.data" no proprio
+        // bundle), nao ofLocalizedDateTime - esse metodo delega ao dado
+        // de locale CLDR do JDK em execucao, que pode mudar de versao
+        // pra versao (o formato exato de "en"/"es" nao e garantia
+        // nossa). O Locale so entra pra escrever o nome do mes (MMM)
+        // no idioma certo quando o padrao usa letras em vez de numero.
+        DateTimeFormatter dataFormatter = DateTimeFormatter.ofPattern(textos.getString("formato.data"), locale);
 
         try {
             ByteArrayOutputStream saida = new ByteArrayOutputStream();
