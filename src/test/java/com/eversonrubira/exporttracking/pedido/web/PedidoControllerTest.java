@@ -4,6 +4,7 @@ import com.eversonrubira.exporttracking.pedido.ChecklistDocumento;
 import com.eversonrubira.exporttracking.pedido.ChecklistService;
 import com.eversonrubira.exporttracking.pedido.FormaPagamento;
 import com.eversonrubira.exporttracking.pedido.Incoterm;
+import com.eversonrubira.exporttracking.pedido.Moeda;
 import com.eversonrubira.exporttracking.pedido.Pedido;
 import com.eversonrubira.exporttracking.pedido.PedidoEstado;
 import com.eversonrubira.exporttracking.pedido.PedidoSequenciaService;
@@ -79,7 +80,7 @@ class PedidoControllerTest {
                 .quantidade(new BigDecimal("20.000"))
                 .unidadeMedida("TON")
                 .precoAcordado(new BigDecimal("85000.00"))
-                .moeda("USD")
+                .moeda(Moeda.USD)
                 .incoterm(Incoterm.CFR)
                 .formaPagamento(FormaPagamento.TT_ANTECIPADO)
                 .percentualParcial(new BigDecimal("30.00"))
@@ -87,13 +88,50 @@ class PedidoControllerTest {
     }
 
     private CriarPedidoRequest requestValido() {
+        return requestComCondicoesComerciais(
+                new BigDecimal("20.000"), new BigDecimal("85000.00"), new BigDecimal("30.00"));
+    }
+
+    private CriarPedidoRequest requestComCondicoesComerciais(
+            BigDecimal quantidade, BigDecimal precoAcordado, BigDecimal percentualParcial) {
         return new CriarPedidoRequest(
                 "PO-0001", "Cliente Teste", "Consignee Teste", "China",
                 "Porto de Santos", "Porto de Xangai", "Carne bovina",
-                new BigDecimal("20.000"), "TON",
+                quantidade, "TON",
                 new CondicoesComerciaisRequest(
-                        new BigDecimal("85000.00"), "USD", Incoterm.CFR,
-                        FormaPagamento.TT_ANTECIPADO, new BigDecimal("30.00")));
+                        precoAcordado, Moeda.USD, Incoterm.CFR,
+                        FormaPagamento.TT_ANTECIPADO, percentualParcial));
+    }
+
+    // moeda/incoterm invalidos nao chegam a este tipo Java (o enum nao
+    // aceita valor fora dele) - precisam de JSON literal pra simular o
+    // que um cliente HTTP de verdade manda.
+    private String corpoComMoeda(String moeda) {
+        return """
+                {
+                  "numeroPedido": "PO-0001", "cliente": "Cliente Teste", "consignee": "Consignee Teste",
+                  "paisDestino": "China", "portoOrigem": "Porto de Santos", "portoDestino": "Porto de Xangai",
+                  "produto": "Carne bovina", "quantidade": 20.000, "unidadeMedida": "TON",
+                  "condicoesComerciais": {
+                    "precoAcordado": 85000.00, "moeda": "%s", "incoterm": "CFR",
+                    "formaPagamento": "TT_ANTECIPADO", "percentualParcial": 30.00
+                  }
+                }
+                """.formatted(moeda);
+    }
+
+    private String corpoComIncoterm(String incoterm) {
+        return """
+                {
+                  "numeroPedido": "PO-0001", "cliente": "Cliente Teste", "consignee": "Consignee Teste",
+                  "paisDestino": "China", "portoOrigem": "Porto de Santos", "portoDestino": "Porto de Xangai",
+                  "produto": "Carne bovina", "quantidade": 20.000, "unidadeMedida": "TON",
+                  "condicoesComerciais": {
+                    "precoAcordado": 85000.00, "moeda": "USD", "incoterm": "%s",
+                    "formaPagamento": "TT_ANTECIPADO", "percentualParcial": 30.00
+                  }
+                }
+                """.formatted(incoterm);
     }
 
     @Test
@@ -128,6 +166,155 @@ class PedidoControllerTest {
         mockMvc.perform(post("/pedidos")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonInvalido))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+    }
+
+    @Test
+    void criarComMoedaInvalidaRetorna400ComMensagemPorCampoListandoOEnum() throws Exception {
+        mockMvc.perform(post("/pedidos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpoComMoeda("Yen")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
+                .andExpect(jsonPath("$.mensagem").value(
+                        "condicoesComerciais.moeda: valores aceitos sao USD, EUR e BRL"));
+    }
+
+    @Test
+    void criarComMoedaMinusculaInvalidaRetorna400() throws Exception {
+        // Deserializacao de enum e case-sensitive por padrao - "usd"
+        // minusculo tambem nao bate com nenhuma constante de Moeda.
+        mockMvc.perform(post("/pedidos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpoComMoeda("usd")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+    }
+
+    @Test
+    void criarComIncotermInvalidoRetorna400ComMensagemPorCampoListandoOEnum() throws Exception {
+        // Mesmo handler (HttpMessageNotReadableException) cobrindo um enum
+        // que ja existia antes desta feature - prova que a solucao nao e
+        // hardcoded pra Moeda.
+        mockMvc.perform(post("/pedidos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpoComIncoterm("XXX")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
+                .andExpect(jsonPath("$.mensagem").value(
+                        "condicoesComerciais.incoterm: valores aceitos sao "
+                                + "EXW, FCA, FAS, FOB, CFR, CIF, CPT, CIP, DAP, DPU e DDP"));
+    }
+
+    @Test
+    void criarComJsonMalformadoRetorna400ComMensagemGenericaSemTextoInternoDoJackson() throws Exception {
+        String jsonQuebrado = """
+                { "numeroPedido": "PO-0001", "cliente":
+                """;
+
+        mockMvc.perform(post("/pedidos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonQuebrado))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"))
+                .andExpect(jsonPath("$.mensagem").value("Corpo da requisicao invalido ou mal formado"));
+    }
+
+    @Test
+    void criarComQuantidadeZeroRetorna400() throws Exception {
+        CriarPedidoRequest request = requestComCondicoesComerciais(
+                BigDecimal.ZERO, new BigDecimal("85000.00"), new BigDecimal("30.00"));
+
+        mockMvc.perform(post("/pedidos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+    }
+
+    @Test
+    void criarComQuantidadeNegativaRetorna400() throws Exception {
+        CriarPedidoRequest request = requestComCondicoesComerciais(
+                new BigDecimal("-1"), new BigDecimal("85000.00"), new BigDecimal("30.00"));
+
+        mockMvc.perform(post("/pedidos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+    }
+
+    @Test
+    void criarComPrecoAcordadoZeroRetorna400() throws Exception {
+        CriarPedidoRequest request = requestComCondicoesComerciais(
+                new BigDecimal("20.000"), BigDecimal.ZERO, new BigDecimal("30.00"));
+
+        mockMvc.perform(post("/pedidos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+    }
+
+    @Test
+    void criarComPrecoAcordadoNegativoRetorna400() throws Exception {
+        CriarPedidoRequest request = requestComCondicoesComerciais(
+                new BigDecimal("20.000"), new BigDecimal("-1"), new BigDecimal("30.00"));
+
+        mockMvc.perform(post("/pedidos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+    }
+
+    @Test
+    void criarComPercentualParcialZeroRetorna201() throws Exception {
+        CriarPedidoRequest request = requestComCondicoesComerciais(
+                new BigDecimal("20.000"), new BigDecimal("85000.00"), BigDecimal.ZERO);
+        when(pedidoService.criar(any(Pedido.class))).thenReturn(pedido);
+        when(pedidoService.buscarChecklist("PO-0001")).thenReturn(List.of());
+
+        mockMvc.perform(post("/pedidos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void criarComPercentualParcialCemRetorna201() throws Exception {
+        CriarPedidoRequest request = requestComCondicoesComerciais(
+                new BigDecimal("20.000"), new BigDecimal("85000.00"), new BigDecimal("100"));
+        when(pedidoService.criar(any(Pedido.class))).thenReturn(pedido);
+        when(pedidoService.buscarChecklist("PO-0001")).thenReturn(List.of());
+
+        mockMvc.perform(post("/pedidos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void criarComPercentualParcialNegativoRetorna400() throws Exception {
+        CriarPedidoRequest request = requestComCondicoesComerciais(
+                new BigDecimal("20.000"), new BigDecimal("85000.00"), new BigDecimal("-1"));
+
+        mockMvc.perform(post("/pedidos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+    }
+
+    @Test
+    void criarComPercentualParcialAcimaDeCemRetorna400() throws Exception {
+        CriarPedidoRequest request = requestComCondicoesComerciais(
+                new BigDecimal("20.000"), new BigDecimal("85000.00"), new BigDecimal("101"));
+
+        mockMvc.perform(post("/pedidos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
     }
@@ -318,34 +505,76 @@ class PedidoControllerTest {
 
     @Test
     void atualizarLogisticaComSoNumeroContainerAtualizaSoEsseCampo() throws Exception {
-        when(pedidoService.atualizarDadosLogisticos("PO-0001", null, "MSKU1234567")).thenReturn(pedido);
+        when(pedidoService.atualizarDadosLogisticos("PO-0001", null, "MSCU1234566")).thenReturn(pedido);
         when(pedidoService.buscarChecklist("PO-0001")).thenReturn(List.of());
 
         mockMvc.perform(patch("/pedidos/PO-0001/logistica")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                { "numeroContainer": "MSKU1234567" }
+                                { "numeroContainer": "MSCU1234566" }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.numeroPedido").value("PO-0001"));
 
-        verify(pedidoService).atualizarDadosLogisticos(eq("PO-0001"), isNull(), eq("MSKU1234567"));
+        verify(pedidoService).atualizarDadosLogisticos(eq("PO-0001"), isNull(), eq("MSCU1234566"));
     }
 
     @Test
     void atualizarLogisticaComOsDoisCamposAtualizaAmbos() throws Exception {
-        when(pedidoService.atualizarDadosLogisticos("PO-0001", "Maersk", "MSKU1234567")).thenReturn(pedido);
+        when(pedidoService.atualizarDadosLogisticos("PO-0001", "Maersk", "MSCU1234566")).thenReturn(pedido);
         when(pedidoService.buscarChecklist("PO-0001")).thenReturn(List.of());
 
         mockMvc.perform(patch("/pedidos/PO-0001/logistica")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                { "ciaMaritima": "Maersk", "numeroContainer": "MSKU1234567" }
+                                { "ciaMaritima": "Maersk", "numeroContainer": "MSCU1234566" }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.numeroPedido").value("PO-0001"));
 
-        verify(pedidoService).atualizarDadosLogisticos("PO-0001", "Maersk", "MSKU1234567");
+        verify(pedidoService).atualizarDadosLogisticos("PO-0001", "Maersk", "MSCU1234566");
+    }
+
+    @Test
+    void atualizarLogisticaComNumeroContainerInvalidoRetorna400SemChamarOService() throws Exception {
+        mockMvc.perform(patch("/pedidos/PO-0001/logistica")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "numeroContainer": "Plastico" }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+
+        verify(pedidoService, org.mockito.Mockito.never()).atualizarDadosLogisticos(any(), any(), any());
+    }
+
+    @Test
+    void atualizarLogisticaComDigitoVerificadorErradoRetorna400() throws Exception {
+        mockMvc.perform(patch("/pedidos/PO-0001/logistica")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "numeroContainer": "MSCU1234569" }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("VALIDACAO_INVALIDA"));
+    }
+
+    @Test
+    void atualizarLogisticaComNumeroContainerMinusculoEspacadoPassaNaValidacao() throws Exception {
+        // A anotacao normaliza internamente antes de checar - minuscula,
+        // com espaco e hifen precisa passar do mesmo jeito que a forma
+        // ja normalizada. O valor de verdade gravado (normalizado) so e
+        // confirmado onde o service real roda (PedidoServiceTest/E2E),
+        // ja que aqui pedidoService e mock.
+        when(pedidoService.atualizarDadosLogisticos(eq("PO-0001"), isNull(), any())).thenReturn(pedido);
+        when(pedidoService.buscarChecklist("PO-0001")).thenReturn(List.of());
+
+        mockMvc.perform(patch("/pedidos/PO-0001/logistica")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "numeroContainer": "mscu 123456-6" }
+                                """))
+                .andExpect(status().isOk());
     }
 
     @Test

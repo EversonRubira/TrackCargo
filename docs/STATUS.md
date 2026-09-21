@@ -1,8 +1,67 @@
 # Status — TrackCargo
 
 ## Última atualização
-20/set/2026 — PDF de status mostra documentos e recusas (branch
-`feature/pdf-status-documentos`)
+21/set/2026 — Endurecimento de validação de campos, Bloco 1/backend
+concluído (branch `feature/validacao-campos`)
+
+## Endurecimento de validação de campos — Bloco 1 (backend) concluído
+
+Motivação: pedidos aceitavam valores sem sentido (`moeda: "Yen"`,
+`precoAcordado: 1` etc., `numeroContainer: "Plastico"`) — só existia
+validação de presença/tamanho, nunca de domínio/formato. Sem dado de
+produção, só dados de teste locais — endurecido direto, sem migração.
+
+**Backend (detalhes completos em `docs/SPEC.md`, seção "Endurecimento
+de validação de campos"):**
+- `Moeda` (novo enum fechado `USD, EUR, BRL`) substitui `String` livre
+  em `Pedido.moeda`/`CondicoesComerciaisRequest`/`PedidoResponse`
+  (`@Enumerated(EnumType.STRING)`, coluna continua `VARCHAR(3)`).
+- `@Positive` em `quantidade` e `precoAcordado`; `@DecimalMin("0")` +
+  `@DecimalMax("100")` (inclusive) em `percentualParcial`.
+- `Iso6346` (`pedido/validacao/`, classe pura sem Spring) implementa
+  normalização + validação de formato e dígito verificador ISO 6346.
+  `@NumeroContainerIso6346` (Bean Validation) no
+  `AtualizarLogisticaRequest.numeroContainer` chama a mesma classe;
+  `PedidoService.atualizarDadosLogisticos()` normaliza antes de
+  persistir — uma única implementação do algoritmo pras duas partes.
+  Confirmado que só o endpoint de logística edita esse campo (não há
+  duplicação a resolver).
+- Novo `@ExceptionHandler(HttpMessageNotReadableException.class)` em
+  `GlobalExceptionHandler`: cobre enum inválido no body (`"Yen"`) e
+  JSON malformado, gerando a mensagem por campo a partir de
+  `Enum.values()` (ampliar um enum depois não exige tocar no handler)
+  e uma mensagem genérica pra qualquer outro erro de parse — nunca
+  expõe texto interno do Jackson. Mesmo formato de 400 já existente.
+
+**Testes novos:** `Iso6346Test` (8, puro), +12 em `PedidoControllerTest`
+(moeda/incoterm inválidos no body, JSON malformado, `@Positive`,
+faixa de percentual, ISO 6346 no PATCH de logística), +1 em
+`PedidoServiceTest` (normalização persistida), +1 cenário em
+`FluxoPedidoE2ETest` (criar válido, depois cada valor inválido → 400
+na API real). 6 arquivos de teste pré-existentes ajustados só pela
+mudança de tipo de `moeda` (`String` → `Moeda`); 3 números de
+container fixture pré-existentes trocados por valores ISO 6346
+genuinamente válidos (os antigos tinham dígito verificador errado —
+achado pela nova validação, não causado por ela).
+
+## Resultado da suíte completa (mvn test) — 2 rodadas
+**121/121 verde nas duas rodadas** (banco recriado do zero na
+segunda, Flyway sem migration nova nesta feature — schema V1→V5
+inalterado, só validação de aplicação).
+
+## Estado de saída (Bloco 1 — backend)
+Bloco 1 fechado conforme especificado: enum de moeda, `@Positive`,
+faixa de percentual, ISO 6346 com normalização compartilhada, handler
+novo de `HttpMessageNotReadableException`, testes cobrindo os
+critérios pedidos, `docs/SPEC.md` atualizado (seção nova + linhas na
+tabela de correlação). **Parado aqui, aguardando confirmação explícita
+antes do Bloco 2 (frontend)** — próximo passo: campo de moeda vira
+`<select>`, campo de container mostra erro/valor normalizado do
+backend, banner exibe erros por campo, `types.ts` atualizado só com o
+que o backend realmente envia, `tsc`/`lint`/`build`/testes do
+`frontend/`.
+
+---
 
 ## PDF de status mostra documentos e recusas
 

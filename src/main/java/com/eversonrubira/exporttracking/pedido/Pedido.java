@@ -62,8 +62,9 @@ public class Pedido {
     @Column(name = "preco_acordado", nullable = false, precision = 14, scale = 2)
     private BigDecimal precoAcordado;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 3)
-    private String moeda;
+    private Moeda moeda;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
@@ -107,7 +108,7 @@ public class Pedido {
         this.quantidade = Objects.requireNonNull(b.quantidade, "quantidade e obrigatoria");
         this.unidadeMedida = Objects.requireNonNull(b.unidadeMedida, "unidadeMedida e obrigatoria");
         this.precoAcordado = Objects.requireNonNull(b.precoAcordado, "precoAcordado e obrigatorio");
-        this.moeda = (b.moeda != null) ? b.moeda : "USD";
+        this.moeda = (b.moeda != null) ? b.moeda : Moeda.USD;
         this.incoterm = Objects.requireNonNull(b.incoterm, "incoterm e obrigatorio");
         this.formaPagamento = Objects.requireNonNull(b.formaPagamento, "formaPagamento e obrigatorio");
         this.percentualParcial = Objects.requireNonNull(b.percentualParcial, "percentualParcial e obrigatorio");
@@ -129,7 +130,7 @@ public class Pedido {
         private BigDecimal quantidade;
         private String unidadeMedida;
         private BigDecimal precoAcordado;
-        private String moeda;
+        private Moeda moeda;
         private Incoterm incoterm;
         private FormaPagamento formaPagamento;
         private BigDecimal percentualParcial;
@@ -144,7 +145,7 @@ public class Pedido {
         public Builder quantidade(BigDecimal v) { this.quantidade = v; return this; }
         public Builder unidadeMedida(String v) { this.unidadeMedida = v; return this; }
         public Builder precoAcordado(BigDecimal v) { this.precoAcordado = v; return this; }
-        public Builder moeda(String v) { this.moeda = v; return this; }
+        public Builder moeda(Moeda v) { this.moeda = v; return this; }
         public Builder incoterm(Incoterm v) { this.incoterm = v; return this; }
         public Builder formaPagamento(FormaPagamento v) { this.formaPagamento = v; return this; }
         public Builder percentualParcial(BigDecimal v) { this.percentualParcial = v; return this; }
@@ -212,7 +213,7 @@ public class Pedido {
     public String getCiaMaritima() { return ciaMaritima; }
     public String getNumeroContainer() { return numeroContainer; }
     public BigDecimal getPrecoAcordado() { return precoAcordado; }
-    public String getMoeda() { return moeda; }
+    public Moeda getMoeda() { return moeda; }
     public Incoterm getIncoterm() { return incoterm; }
     public FormaPagamento getFormaPagamento() { return formaPagamento; }
     public BigDecimal getPercentualParcial() { return percentualParcial; }
