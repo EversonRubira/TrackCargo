@@ -537,6 +537,55 @@ colunas `Documento | Status | Último envio | Aceito em`:
 > separado. Único gotcha real de stack nesta peça foi o pacote do
 > OpenPDF, não o Spring.
 
+### PDF de status multilíngue (i18n-infra Bloco 2)
+
+Requisito irrevogável de internacionalização (pt-BR/en/es) — o PDF é
+o único lugar do backend que gera **texto final pro cliente ler**
+(diferente dos erros, que o Bloco 1 passou a devolver por código pro
+front traduzir). `PdfStatusService.gerar(...)` ganhou um parâmetro
+`String idioma`; o endpoint `GET /pedidos/{numero}/status.pdf` ganhou
+`?lang=` (`@RequestParam(name = "lang", defaultValue = "pt")`).
+
+- **`ResourceBundle`, não `MessageSource`.** `PdfStatusService` não
+  tem contexto Spring nenhum — não injeta repositório/service, só
+  recebe dados prontos como parâmetro (decisão de design já registrada
+  acima, "servico puro"). Injetar um `MessageSource` só pra isso
+  quebraria essa pureza sem necessidade; `ResourceBundle.getBundle(...)`
+  é Java puro, testável sem subir contexto nenhum — mesmo princípio já
+  aplicado ao resto da classe.
+- **Arquivos:** `src/main/resources/i18n/pdf-status-messages_{pt,en,es}.properties`
+  (chaves com acento via `\uXXXX`, não caractere bruto — evita
+  depender de qual `Charset` o `ResourceBundle.Control` padrão usa pra
+  ler `.properties`, comportamento que já mudou entre versões do
+  Java). Sem arquivo "raiz" (`pdf-status-messages.properties`) de
+  fallback — desnecessário, porque `localeDoIdioma(String)` já
+  normaliza qualquer valor fora de `{pt, en, es}` pro padrão `pt`
+  *antes* de chamar `ResourceBundle.getBundle`, então o método nunca
+  pede um idioma que não tenha arquivo.
+- **Rótulos legíveis pros 9 estados de `PedidoEstado`** (não só os 8
+  da barra de progresso) — resolve o gap real que a barra tinha desde
+  a Fase 4/F03: sempre mostrou `PedidoEstado.name()` cru
+  (`DOCUMENTACAO_ENVIADA`), nunca teve rótulo legível, nem só em PT.
+  Novo método `chaveEstado(PedidoEstado)`, mesmo padrão de
+  `chaveDocumento(TipoDocumento)` (ex-`rotulo(TipoDocumento)`) —
+  `switch` expression **sem `default`**, estado novo sem chave vira
+  erro de compilação.
+- **Datas via `DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale)`**,
+  sem padrão fixo — substituiu o `DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")`
+  anterior. Confirmado no JDK deste projeto (dados de locale CLDR):
+  `pt` coincide com o padrão antigo (`21/09/2026 14:34`), `en` e `es`
+  saem em formatos distintos e corretos pra cada convenção regional
+  (ver evidência real no `docs/STATUS.md`).
+- **Templates com parâmetro via `MessageFormat.format(...)`** (título
+  "Status do pedido {0}", "Desde: {0}", recusa "Recusado em {0} (envio
+  de {1}): {2}") — únicas 3 chaves com `{n}`; o resto são rótulos
+  fixos por idioma, sem interpolação.
+- **`ValidacaoCodigoMapperTest`-like:** `PdfStatusMessagesParityTest`
+  (pacote `pedido.pdf`) carrega os 3 bundles e compara `keySet()` —
+  trava uma chave esquecida num idioma antes que vire
+  `MissingResourceException` em produção, só quando alguém pedir o
+  PDF naquele idioma específico.
+
 **`PATCH /pedidos/{numeroPedido}/logistica` — por que é um endpoint
 separado, sem regra de transição de estado nenhuma:** diferente do
 resto do fluxo (documentação, pagamentos, embarque), `ciaMaritima` e
@@ -656,8 +705,12 @@ cliente traduz (isso passou a ser `erro`/`campos[].codigo` +
 `parametros`, ver mais abaixo). `parametros` carrega os dados de um
 erro de domínio (ex: `numeroPedido`, `tipo`, `estadoAtual`/
 `estadoSolicitado`); `campos` carrega os erros de validação, um item
-por campo inválido. Os dois ficam `null` quando não se aplicam ao
-tipo de erro (nunca os dois preenchidos ao mesmo tempo).
+por campo inválido. **Os dois são mutuamente exclusivos e opcionais:
+`parametros` vem `null` em todo erro de validação (`campos` é quem
+carrega o dado ali) e `campos` vem `null` em todo erro de domínio
+(`parametros` é quem carrega o dado ali) — nunca os dois preenchidos
+ao mesmo tempo, e o cliente deve tratar ambos como campos opcionais
+do contrato, não como sempre presentes.**
 
 ### Mapeamento de exceção → status HTTP (`GlobalExceptionHandler`)
 
@@ -697,6 +750,13 @@ public record ErrorResponse(
     public record CampoErro(String campo, String codigo, Map<String, Object> parametros) {}
 }
 ```
+
+**`parametros` e `campos` são opcionais e mutuamente exclusivos:**
+`parametros` é `null` em todo erro de validação (`VALIDACAO_INVALIDA`/
+`JSON_MALFORMADO`) — o dado granular ali mora em `campos`; `campos` é
+`null` em todo erro de domínio — o dado ali mora em `parametros`. O
+front (Bloco 3) trata os dois como campos opcionais do contrato
+(nunca assume que um dos dois vem sempre preenchido).
 
 **Mudança de shape que quebra compatibilidade:** os campos top-level
 `estadoAtual`/`estadoSolicitado` (só usados por `TRANSICAO_INVALIDA`)
@@ -1046,6 +1106,9 @@ normalizado que a API de fato gravou.
 | Exceções de domínio (`PEDIDO_NAO_ENCONTRADO`, `CHECKLIST_DOCUMENTO_NAO_ENCONTRADO`, `DOCUMENTO_JA_ACEITO`, `DOCUMENTO_NAO_ENVIADO`, `DOCUMENTO_NAO_ACEITO`, `DOCUMENTO_ADICIONAL_JA_EXISTE`, `TRANSICAO_INVALIDA`) devolvem `parametros` com os dados da exceção; `PARAMETRO_INVALIDO` (path variable inválida) devolve `{parametro, valor}` | API + Unitário | `PedidoControllerTest.buscarPorNumeroInexistenteRetorna404` + `transicionarComEstadoInvalidoRetorna409` + `ChecklistControllerTest.enviarDocumentoJaAceitoRetorna409` + `enviarDocumentoInexistenteRetorna404` + `aceitarDocumentoNaoEnviadoRetorna409` + `reabrirDocumentoNaoAceitoRetorna409` + `recusarDocumentoNaoEnviadoRetorna409` + `recusarDocumentoJaAceitoRetorna409` + `tipoDocumentoInvalidoNaRotaRetorna400` + `GlobalExceptionHandlerTest.tratarDocumentoAdicionalJaExistePreencheParametrosComNumeroPedido` (sem endpoint REST próprio, testado direto no handler) |
 | `quantidade`/`precoAcordado` rejeitam zero e negativos; `percentualParcial` aceita 0 e 100, rejeita -1 e 101 | API | `PedidoControllerTest` — testes de `@Positive` em quantidade/precoAcordado e de faixa em percentualParcial (ver classe pra nomes completos, um teste por caso de fronteira) |
 | Fluxo real: criar pedido válido, depois tentar moeda/quantidade/percentualParcial/numeroContainer inválidos, cada um retornando 400 `VALIDACAO_INVALIDA` na API real | E2E | `FluxoPedidoE2ETest.criarPedidoValidoDepoisValoresInvalidosRetorna400NaAPIReal` |
+| PDF de status gerado nos 3 idiomas (pt/en/es) com rótulos, título, cabeçalhos de tabela e status calculado traduzidos; os 9 estados de `PedidoEstado` têm rótulo legível (não mais `name()` cru); idioma desconhecido cai no padrão `pt` sem lançar exceção; selo de pedido cancelado traduzido | Unitário (PDF real) | `PdfStatusServiceTest.geraPdfNosTresIdiomasComRotulosTraduzidos` + `idiomaDesconhecidoCaiNoPadraoPt` + `seloDePedidoCanceladoSaiTraduzidoNosTresIdiomas` |
+| As chaves dos 3 arquivos de mensagens do PDF (`pdf-status-messages_{pt,en,es}.properties`) são idênticas — nenhuma chave esquecida num idioma | Unitário | `PdfStatusMessagesParityTest.asTresChavesDeMensagensSaoIdenticasEmPtEnEEs` |
+| `GET /pedidos/{numero}/status.pdf?lang=` repassa o idioma pro service (default `pt` quando omitido) | API | `PedidoControllerTest.gerarPdfStatusRetorna200ComContentTypePdf` (default) + `gerarPdfStatusComLangRepassaIdiomaParaOService` |
 
 ## Fora de escopo desta Spec
 

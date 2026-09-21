@@ -11,7 +11,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,7 +42,12 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 // excecao, resto do texto legivel.
 class PdfStatusServiceTest {
 
-    private static final DateTimeFormatter FORMATO_DATA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    // Mesmo formatador que o service usa pra "pt" (ofLocalizedDateTime,
+    // sem padrao fixo desde a internacionalizacao do PDF) - alinhado ao
+    // dado real gerado, nao a um padrao hardcoded que pode divergir.
+    private static final DateTimeFormatter FORMATO_DATA =
+            DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(Locale.of("pt"));
+    private static final String IDIOMA_PADRAO = "pt";
 
     private final PdfStatusService service = new PdfStatusService();
     private Pedido pedido;
@@ -69,7 +76,7 @@ class PdfStatusServiceTest {
     void documentoPendenteMostraStatusPendenteComTravessoesNasDatas() throws Exception {
         ChecklistDocumento invoice = new ChecklistDocumento(pedido, TipoDocumento.INVOICE);
 
-        String texto = extrairTexto(service.gerar(pedido, List.of(), List.of(invoice), Map.of()));
+        String texto = extrairTexto(service.gerar(pedido, List.of(), List.of(invoice), Map.of(), IDIOMA_PADRAO));
 
         assertThat(texto).contains("Invoice");
         assertThat(texto).contains("Pendente");
@@ -80,7 +87,7 @@ class PdfStatusServiceTest {
         ChecklistDocumento invoice = new ChecklistDocumento(pedido, TipoDocumento.INVOICE);
         invoice.marcarEnviado();
 
-        String texto = extrairTexto(service.gerar(pedido, List.of(), List.of(invoice), Map.of()));
+        String texto = extrairTexto(service.gerar(pedido, List.of(), List.of(invoice), Map.of(), IDIOMA_PADRAO));
 
         assertThat(texto).contains("Enviado");
         assertThat(texto).contains(invoice.getEnviadoEm().format(FORMATO_DATA));
@@ -92,7 +99,7 @@ class PdfStatusServiceTest {
         invoice.marcarEnviado();
         invoice.marcarAceito();
 
-        String texto = extrairTexto(service.gerar(pedido, List.of(), List.of(invoice), Map.of()));
+        String texto = extrairTexto(service.gerar(pedido, List.of(), List.of(invoice), Map.of(), IDIOMA_PADRAO));
 
         assertThat(texto).contains("Aceito");
         assertThat(texto).contains(invoice.getAceitoEm().format(FORMATO_DATA));
@@ -108,7 +115,7 @@ class PdfStatusServiceTest {
                 "Invoice sem assinatura do responsavel", TipoDocumento.INVOICE, envioOriginal);
 
         String texto = extrairTexto(service.gerar(pedido, List.of(), List.of(invoice),
-                Map.of(TipoDocumento.INVOICE, List.of(recusa))));
+                Map.of(TipoDocumento.INVOICE, List.of(recusa)), IDIOMA_PADRAO));
 
         assertThat(texto).contains("Recusado, aguardando reenvio");
         assertThat(texto).contains("Invoice sem assinatura do responsavel");
@@ -128,7 +135,7 @@ class PdfStatusServiceTest {
         invoice.marcarAceito();
 
         String texto = extrairTexto(service.gerar(pedido, List.of(), List.of(invoice),
-                Map.of(TipoDocumento.INVOICE, List.of(recusa))));
+                Map.of(TipoDocumento.INVOICE, List.of(recusa)), IDIOMA_PADRAO));
 
         assertThat(texto).contains("Aceito");
         assertThat(texto).contains("Valor da invoice divergente do contrato");
@@ -145,7 +152,7 @@ class PdfStatusServiceTest {
                 "Segunda recusa: valor ainda divergente", TipoDocumento.INVOICE, LocalDateTime.now().minusDays(1));
 
         String texto = extrairTexto(service.gerar(pedido, List.of(), List.of(invoice),
-                Map.of(TipoDocumento.INVOICE, List.of(primeira, segunda))));
+                Map.of(TipoDocumento.INVOICE, List.of(primeira, segunda)), IDIOMA_PADRAO));
 
         int indicePrimeira = texto.indexOf("Primeira recusa: assinatura ausente");
         int indiceSegunda = texto.indexOf("Segunda recusa: valor ainda divergente");
@@ -167,10 +174,12 @@ class PdfStatusServiceTest {
                 motivo, TipoDocumento.INVOICE, LocalDateTime.now());
 
         assertThatCode(() ->
-                service.gerar(pedido, List.of(), List.of(invoice), Map.of(TipoDocumento.INVOICE, List.of(recusa))))
+                service.gerar(pedido, List.of(), List.of(invoice),
+                        Map.of(TipoDocumento.INVOICE, List.of(recusa)), IDIOMA_PADRAO))
                 .doesNotThrowAnyException();
 
-        byte[] pdf = service.gerar(pedido, List.of(), List.of(invoice), Map.of(TipoDocumento.INVOICE, List.of(recusa)));
+        byte[] pdf = service.gerar(pedido, List.of(), List.of(invoice),
+                Map.of(TipoDocumento.INVOICE, List.of(recusa)), IDIOMA_PADRAO);
         String texto = extrairTexto(pdf).replaceAll("\\s+", " ");
         String finalDoMotivo = motivo.substring(motivo.length() - 40).replaceAll("\\s+", " ").trim();
 
@@ -195,7 +204,8 @@ class PdfStatusServiceTest {
         PedidoOcorrencia recusa = new PedidoOcorrencia(pedido, TipoOcorrencia.RECUSA_DOCUMENTO,
                 motivo, TipoDocumento.INVOICE, LocalDateTime.now());
 
-        byte[] pdf = service.gerar(pedido, List.of(), List.of(invoice), Map.of(TipoDocumento.INVOICE, List.of(recusa)));
+        byte[] pdf = service.gerar(pedido, List.of(), List.of(invoice),
+                Map.of(TipoDocumento.INVOICE, List.of(recusa)), IDIOMA_PADRAO);
         String texto = extrairTexto(pdf).replaceAll("\\s+", " ");
 
         assertThat(texto).contains("Divergencia encontrada: numero do lote nao confere");
@@ -236,7 +246,8 @@ class PdfStatusServiceTest {
         PedidoOcorrencia recusa = new PedidoOcorrencia(pedido, TipoOcorrencia.RECUSA_DOCUMENTO,
                 motivo, TipoDocumento.INVOICE, LocalDateTime.now());
 
-        byte[] pdf = service.gerar(pedido, List.of(), List.of(invoice), Map.of(TipoDocumento.INVOICE, List.of(recusa)));
+        byte[] pdf = service.gerar(pedido, List.of(), List.of(invoice),
+                Map.of(TipoDocumento.INVOICE, List.of(recusa)), IDIOMA_PADRAO);
         String texto = extrairTexto(pdf).replaceAll("\\s+", " ");
 
         assertThat(texto).contains("inicio texto normal antes");
@@ -250,6 +261,44 @@ class PdfStatusServiceTest {
     }
 
     @Test
+    void geraPdfNosTresIdiomasComRotulosTraduzidos() throws Exception {
+        ChecklistDocumento invoice = new ChecklistDocumento(pedido, TipoDocumento.INVOICE);
+
+        String textoPt = extrairTexto(service.gerar(pedido, List.of(), List.of(invoice), Map.of(), "pt"));
+        String textoEn = extrairTexto(service.gerar(pedido, List.of(), List.of(invoice), Map.of(), "en"));
+        String textoEs = extrairTexto(service.gerar(pedido, List.of(), List.of(invoice), Map.of(), "es"));
+
+        assertThat(textoPt).contains("Status do pedido").contains("Documentos")
+                .contains("Cliente:").contains("Pendente").contains("Criado");
+        assertThat(textoEn).contains("Order status").contains("Documents")
+                .contains("Customer:").contains("Pending").contains("Created");
+        assertThat(textoEs).contains("Estado del pedido").contains("Documentos")
+                .contains("Cliente:").contains("Pendiente").contains("Creado");
+    }
+
+    @Test
+    void idiomaDesconhecidoCaiNoPadraoPt() throws Exception {
+        ChecklistDocumento invoice = new ChecklistDocumento(pedido, TipoDocumento.INVOICE);
+
+        String texto = extrairTexto(service.gerar(pedido, List.of(), List.of(invoice), Map.of(), "fr"));
+
+        assertThat(texto).contains("Status do pedido").contains("Pendente");
+    }
+
+    @Test
+    void seloDePedidoCanceladoSaiTraduzidoNosTresIdiomas() throws Exception {
+        pedido.aplicarTransicao(PedidoEstado.CANCELADO);
+
+        String textoPt = extrairTexto(service.gerar(pedido, List.of(), List.of(), Map.of(), "pt"));
+        String textoEn = extrairTexto(service.gerar(pedido, List.of(), List.of(), Map.of(), "en"));
+        String textoEs = extrairTexto(service.gerar(pedido, List.of(), List.of(), Map.of(), "es"));
+
+        assertThat(textoPt).contains("PEDIDO CANCELADO");
+        assertThat(textoEn).contains("ORDER CANCELLED");
+        assertThat(textoEs).contains("PEDIDO CANCELADO");
+    }
+
+    @Test
     void colunaDocumentoUsaRotulosLegiveisEmVezDoNomeDoEnum() throws Exception {
         ChecklistDocumento invoice = new ChecklistDocumento(pedido, TipoDocumento.INVOICE);
         ChecklistDocumento packingList = new ChecklistDocumento(pedido, TipoDocumento.PACKING_LIST);
@@ -259,7 +308,7 @@ class PdfStatusServiceTest {
                 "Certificado de origem");
 
         String texto = extrairTexto(service.gerar(pedido, List.of(),
-                List.of(invoice, packingList, bl, certificado, adicional), Map.of()))
+                List.of(invoice, packingList, bl, certificado, adicional), Map.of(), IDIOMA_PADRAO))
                 .replaceAll("\\s+", " ");
 
         assertThat(texto).contains("Invoice");
@@ -284,7 +333,7 @@ class PdfStatusServiceTest {
         ChecklistDocumento certificado = new ChecklistDocumento(pedido, TipoDocumento.CERTIFICADO_SANITARIO);
 
         String texto = extrairTexto(service.gerar(pedido, List.of(),
-                List.of(adicional, bl, packingList, invoice, certificado), Map.of()));
+                List.of(adicional, bl, packingList, invoice, certificado), Map.of(), IDIOMA_PADRAO));
 
         int indiceInvoice = texto.indexOf("Invoice");
         int indicePackingList = texto.indexOf("Packing list");
@@ -333,7 +382,8 @@ class PdfStatusServiceTest {
         ChecklistDocumento certificado = new ChecklistDocumento(pedido, TipoDocumento.CERTIFICADO_SANITARIO);
 
         byte[] pdf = service.gerar(pedido, List.of(), List.of(invoice, bl, packingList, certificado),
-                Map.of(TipoDocumento.INVOICE, List.of(recusaInvoice), TipoDocumento.BL, List.of(recusaBl)));
+                Map.of(TipoDocumento.INVOICE, List.of(recusaInvoice), TipoDocumento.BL, List.of(recusaBl)),
+                IDIOMA_PADRAO);
 
         Files.createDirectories(Path.of("target"));
         Files.write(Path.of("target/sample-status.pdf"), pdf);

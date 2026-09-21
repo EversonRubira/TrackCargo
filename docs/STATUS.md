@@ -1,8 +1,123 @@
 # Status — TrackCargo
 
 ## Última atualização
-21/set/2026 — Endurecimento de validação de campos, Bloco 1/backend
-concluído (branch `feature/validacao-campos`)
+21/set/2026 — i18n-infra Bloco 2 (PDF multilíngue) concluído, branch
+`feature/i18n-infra` (requisito irrevogável: pt-BR/en/es)
+
+## i18n-infra — Bloco 2 (PDF multilíngue) concluído
+
+Segundo bloco da internacionalização (Bloco 1, contrato de erro
+granular por código, já aprovado — ver seção abaixo). Este bloco:
+só backend, só o PDF de status. Nenhum texto de interface do
+frontend foi tocado ainda (isso é Bloco 3).
+
+**Acréscimo de manutenção incluído neste bloco:** os 12 `@Size` sem
+`message=` (gap do Bloco 0/1 — caíam no texto padrão do Hibernate
+Validator, em inglês) ganharam `message=` em português, coerente com
+o resto das anotações. Não muda `codigo`/`parametros` do contrato de
+erro (Bloco 1) — só o texto de depuração (`mensagem`).
+
+**Backend (detalhes completos em `docs/SPEC.md`, seção "PDF de status
+multilíngue"):**
+- `PdfStatusService.gerar(...)` ganhou parâmetro `String idioma`;
+  `GET /pedidos/{numero}/status.pdf?lang=` (default `pt`, valores
+  aceitos `pt`/`en`/`es`; qualquer outro valor cai em `pt` sem lançar
+  exceção).
+- `ResourceBundle` (não `MessageSource`) — `PdfStatusService` não tem
+  contexto Spring, injetar `MessageSource` só pra isso quebraria essa
+  pureza. Arquivos `src/main/resources/i18n/pdf-status-messages_{pt,en,es}.properties`.
+  ~20 strings fixas traduzidas + rótulo legível pros 9 estados de
+  `PedidoEstado` (resolve o gap real da barra de progresso, que desde
+  a Fase 4/F03 sempre mostrou `PedidoEstado.name()` cru).
+  `chaveEstado(PedidoEstado)`/`chaveDocumento(TipoDocumento)`: `switch`
+  sem `default`, estado/tipo novo sem chave vira erro de compilação.
+- Datas via `DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale)`,
+  sem padrão fixo (era `ofPattern("dd/MM/yyyy HH:mm")`).
+- `PdfStatusMessagesParityTest` novo: compara `keySet()` dos 3
+  bundles, trava chave esquecida num idioma antes de virar
+  `MissingResourceException` em produção.
+
+**Testes novos:** `PdfStatusServiceTest` (+3: geração nos 3 idiomas
+com rótulos-chave, idioma desconhecido cai em `pt`, selo de
+cancelamento traduzido) — os 13 testes existentes migrados pra nova
+assinatura de `gerar()` (parâmetro `idioma`) e pro formatador de data
+por locale (`FORMATO_DATA` do teste agora é o mesmo
+`ofLocalizedDateTime` que o service usa pra `pt`, não mais um padrão
+fixo hardcoded em paralelo). `PdfStatusMessagesParityTest` novo (1).
+`PedidoControllerTest` (+1: `?lang=` repassado ao service).
+
+## Resultado da suíte completa (mvn test) — 2 rodadas
+**130/130 verde nas duas rodadas** (banco recriado do zero na
+segunda, Flyway sem migration nova nesta feature).
+
+## Evidência real — PDF gerado nos 3 idiomas (pedido real, via API rodando)
+
+Texto extraído de cada PDF (`PO-PDF-I18N`, estado `CRIADO`,
+`GET /status.pdf?lang={pt,en,es}`):
+
+```
+=== pt ===
+Status do pedido PO-PDF-I18N
+Cliente: Cliente Teste
+Desde: 21/09/2026 14:34
+Criado
+Documentação enviada
+Documentação aceita
+Pagamento parcial recebido
+Embarcado
+Pagamento de saldo recebido
+Documentos originais enviados
+Entregue
+Documento / Status / Último envio / Aceito em
+
+=== en ===
+Order status PO-PDF-I18N
+Customer: Cliente Teste
+Since: 9/21/26, 2:34 PM
+Created
+Documentation sent
+Documentation accepted
+Partial payment received
+Shipped
+Balance payment received
+Original documents sent
+Delivered
+Document / Status / Last shipped / Accepted on
+
+=== es ===
+Estado del pedido PO-PDF-I18N
+Cliente: Cliente Teste
+Desde: 21/9/26, 14:34
+Creado
+Documentación enviada
+Documentación aceptada
+Pago parcial recibido
+Embarcado
+Pago de saldo recibido
+Documentos originales enviados
+Entregado
+Documento / Estado / Último envío / Aceptado el
+```
+
+Confirmado: os 3 idiomas geram PDF válido (verificado com `file`,
+1 página cada), com título, rótulos, os 8 estados da barra de
+progresso (dos 9 de `PedidoEstado` — `CANCELADO` não entra na barra,
+tem selo próprio, testado à parte) e datas formatadas por locale —
+`pt` reproduziu o mesmo formato `dd/MM/yyyy HH:mm` de antes por
+coincidência de dado de locale do JDK, `en`/`es` saíram em formatos
+distintos e corretos pra cada convenção regional.
+
+## Estado de saída (i18n-infra Bloco 2)
+Fechado: PDF de status multilíngue, endpoint com `?lang=`, gap dos
+rótulos de estado resolvido, `@Size` com mensagem de depuração em PT,
+suíte 130/130 em duas rodadas, `docs/SPEC.md` atualizado. Commit em
+`feature/i18n-infra`, ainda sem push/PR — aguardando confirmação
+antes do Bloco 3 (frontend: i18next, tradução de erros por código,
+Intl pra data/número/moeda, remoção de todo texto fixo de interface).
+
+---
+
+## Endurecimento de validação de campos — Bloco 1 (backend) concluído
 
 ## Endurecimento de validação de campos — Bloco 1 (backend) concluído
 

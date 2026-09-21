@@ -653,11 +653,27 @@ class PedidoControllerTest {
         when(pedidoService.buscarHistorico("PO-0001")).thenReturn(List.of());
         when(pedidoService.buscarChecklist("PO-0001")).thenReturn(List.of());
         when(checklistService.buscarRecusasPorDocumento("PO-0001")).thenReturn(Map.of());
-        when(pdfStatusService.gerar(pedido, List.of(), List.of(), Map.of())).thenReturn(pdfFalso);
+        when(pdfStatusService.gerar(pedido, List.of(), List.of(), Map.of(), "pt")).thenReturn(pdfFalso);
 
         mockMvc.perform(get("/pedidos/PO-0001/status.pdf"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_PDF));
+    }
+
+    @Test
+    void gerarPdfStatusComLangRepassaIdiomaParaOService() throws Exception {
+        byte[] pdfFalso = {1, 2, 3};
+        when(pedidoService.buscarPorNumero("PO-0001")).thenReturn(pedido);
+        when(pedidoService.buscarHistorico("PO-0001")).thenReturn(List.of());
+        when(pedidoService.buscarChecklist("PO-0001")).thenReturn(List.of());
+        when(checklistService.buscarRecusasPorDocumento("PO-0001")).thenReturn(Map.of());
+        when(pdfStatusService.gerar(pedido, List.of(), List.of(), Map.of(), "en")).thenReturn(pdfFalso);
+
+        mockMvc.perform(get("/pedidos/PO-0001/status.pdf").param("lang", "en"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF));
+
+        verify(pdfStatusService).gerar(pedido, List.of(), List.of(), Map.of(), "en");
     }
 
     @Test
