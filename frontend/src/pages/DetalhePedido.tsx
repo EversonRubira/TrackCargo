@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router'
 import {
   ApiError,
@@ -19,28 +20,34 @@ import {
   type PedidoResponse,
   type PedidoTransicaoResponse,
 } from '../api/types'
+import { traduzirErro, type ErrosTraduzidos } from '../i18n/erros'
+import { formatarData, formatarMoeda, formatarNumero } from '../i18n/intl'
+
+const SEM_ERROS: ErrosTraduzidos = { porCampo: {}, mensagemGeral: null }
 
 export default function DetalhePedido() {
+  const { t, i18n } = useTranslation()
   const { numeroPedido } = useParams<{ numeroPedido: string }>()
   const [pedido, setPedido] = useState<PedidoResponse | null>(null)
   const [historico, setHistorico] = useState<PedidoTransicaoResponse[]>([])
   const [carregando, setCarregando] = useState(true)
-  const [erro, setErro] = useState<string | null>(null)
+  const [erros, setErros] = useState<ErrosTraduzidos>(SEM_ERROS)
   const [acaoEmCurso, setAcaoEmCurso] = useState(false)
 
   const recarregar = useCallback(async () => {
     if (!numeroPedido) return
     setCarregando(true)
-    setErro(null)
+    setErros(SEM_ERROS)
     try {
       const [p, h] = await Promise.all([buscarPedido(numeroPedido), buscarHistorico(numeroPedido)])
       setPedido(p)
       setHistorico(h)
     } catch (e) {
-      setErro(e instanceof ApiError ? e.message : 'Falha ao carregar pedido.')
+      setErros(e instanceof ApiError ? traduzirErro(t, e) : { porCampo: {}, mensagemGeral: t('detail.erroCarregar') })
     } finally {
       setCarregando(false)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [numeroPedido])
 
   useEffect(() => {
@@ -49,19 +56,19 @@ export default function DetalhePedido() {
 
   async function executar(acao: () => Promise<unknown>) {
     setAcaoEmCurso(true)
-    setErro(null)
+    setErros(SEM_ERROS)
     try {
       await acao()
       await recarregar()
     } catch (e) {
-      setErro(e instanceof ApiError ? e.message : 'Ação falhou.')
+      setErros(e instanceof ApiError ? traduzirErro(t, e) : { porCampo: {}, mensagemGeral: t('detail.erroAcao') })
     } finally {
       setAcaoEmCurso(false)
     }
   }
 
-  if (carregando) return <p className="text-stone-500">Carregando...</p>
-  if (erro && !pedido) return <p className="text-red-600">{erro}</p>
+  if (carregando) return <p className="text-stone-500">{t('detail.carregando')}</p>
+  if (erros.mensagemGeral && !pedido) return <p className="text-red-600">{erros.mensagemGeral}</p>
   if (!pedido || !numeroPedido) return null
 
   const transicoesDisponiveis = TRANSICOES_MANUAIS[pedido.estado]
@@ -71,56 +78,70 @@ export default function DetalhePedido() {
       <div>
         <h1 className="text-2xl font-semibold">Pedido {pedido.numeroPedido}</h1>
         <span className="mt-1 inline-block rounded-full bg-stone-100 px-2 py-1 text-xs font-medium text-stone-700">
-          {pedido.estado}
+          {t(`enums.pedidoEstado.${pedido.estado}`)}
         </span>
       </div>
 
-      {erro && <p className="text-red-600">{erro}</p>}
+      {erros.mensagemGeral && <p className="text-red-600">{erros.mensagemGeral}</p>}
 
-      <Secao titulo="Dados do pedido">
+      <Secao titulo={t('detail.secoes.dadosPedido')}>
         <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
-          <Item label="Cliente" valor={pedido.cliente} />
-          <Item label="Consignee" valor={pedido.consignee} />
-          <Item label="País destino" valor={pedido.paisDestino} />
-          <Item label="Porto origem" valor={pedido.portoOrigem} />
-          <Item label="Porto destino" valor={pedido.portoDestino} />
-          <Item label="Produto" valor={pedido.produto} />
-          <Item label="Quantidade" valor={`${pedido.quantidade} ${pedido.unidadeMedida}`} />
-          <Item label="Preço acordado" valor={`${pedido.precoAcordado} ${pedido.moeda}`} />
-          <Item label="Incoterm" valor={pedido.incoterm} />
-          <Item label="Forma de pagamento" valor={pedido.formaPagamento} />
-          <Item label="Percentual parcial" valor={`${pedido.percentualParcial}%`} />
-          <Item label="Cia marítima" valor={pedido.ciaMaritima ?? '—'} />
-          <Item label="Nº container" valor={pedido.numeroContainer ?? '—'} />
+          <Item label={t('campos.cliente')} valor={pedido.cliente} />
+          <Item label={t('campos.consignee')} valor={pedido.consignee} />
+          <Item label={t('detail.campos.paisDestino')} valor={pedido.paisDestino} />
+          <Item label={t('detail.campos.portoOrigem')} valor={pedido.portoOrigem} />
+          <Item label={t('detail.campos.portoDestino')} valor={pedido.portoDestino} />
+          <Item label={t('campos.produto')} valor={pedido.produto} />
+          <Item
+            label={t('detail.campos.quantidade')}
+            valor={`${formatarNumero(pedido.quantidade, i18n.language)} ${pedido.unidadeMedida}`}
+          />
+          <Item
+            label={t('detail.campos.precoAcordado')}
+            valor={formatarMoeda(pedido.precoAcordado, pedido.moeda, i18n.language)}
+          />
+          <Item label={t('detail.campos.incoterm')} valor={t(`enums.incoterm.${pedido.incoterm}`)} />
+          <Item
+            label={t('detail.campos.formaPagamento')}
+            valor={t(`enums.formaPagamento.${pedido.formaPagamento}`)}
+          />
+          <Item
+            label={t('detail.campos.percentualParcial')}
+            valor={`${formatarNumero(pedido.percentualParcial, i18n.language)}%`}
+          />
+          <Item label={t('campos.ciaMaritima')} valor={pedido.ciaMaritima ?? '—'} />
+          <Item label={t('campos.numeroContainer')} valor={pedido.numeroContainer ?? '—'} />
         </dl>
       </Secao>
 
-      <Secao titulo="Logística">
+      <Secao titulo={t('detail.secoes.logistica')}>
         <FormularioLogistica
           pedido={pedido}
           desabilitado={acaoEmCurso}
+          erroCiaMaritima={erros.porCampo.ciaMaritima}
+          erroNumeroContainer={erros.porCampo.numeroContainer}
           onSalvar={(ciaMaritima, numeroContainer) =>
             executar(() => atualizarLogistica(numeroPedido, { ciaMaritima, numeroContainer }))
           }
         />
       </Secao>
 
-      <Secao titulo="Checklist de documentos">
+      <Secao titulo={t('detail.secoes.checklist')}>
         <table className="w-full text-left text-sm">
           <thead className="text-stone-500">
             <tr>
-              <th className="py-2">Documento</th>
-              <th className="py-2">Enviado</th>
-              <th className="py-2">Aceito</th>
-              <th className="py-2">Ações</th>
+              <th className="py-2">{t('detail.checklist.documento')}</th>
+              <th className="py-2">{t('detail.checklist.enviado')}</th>
+              <th className="py-2">{t('detail.checklist.aceito')}</th>
+              <th className="py-2">{t('detail.checklist.acoes')}</th>
             </tr>
           </thead>
           <tbody>
             {pedido.checklist.map((doc) => (
               <tr key={doc.tipoDocumento} className="border-t border-stone-100">
-                <td className="py-2 font-medium">{doc.tipoDocumento}</td>
-                <td className="py-2">{doc.enviadoEm ? 'Sim' : 'Não'}</td>
-                <td className="py-2">{doc.aceitoEm ? 'Sim' : 'Não'}</td>
+                <td className="py-2 font-medium">{t(`enums.tipoDocumento.${doc.tipoDocumento}`)}</td>
+                <td className="py-2">{doc.enviadoEm ? t('detail.checklist.sim') : t('detail.checklist.nao')}</td>
+                <td className="py-2">{doc.aceitoEm ? t('detail.checklist.sim') : t('detail.checklist.nao')}</td>
                 <td className="space-x-2 py-2">
                   {!doc.enviadoEm && (
                     <BotaoAcao
@@ -129,7 +150,7 @@ export default function DetalhePedido() {
                         executar(() => enviarDocumento(numeroPedido, doc.tipoDocumento))
                       }
                     >
-                      Enviar
+                      {t('detail.checklist.enviar')}
                     </BotaoAcao>
                   )}
                   {doc.enviadoEm && !doc.aceitoEm && (
@@ -139,12 +160,13 @@ export default function DetalhePedido() {
                         executar(() => aceitarDocumento(numeroPedido, doc.tipoDocumento))
                       }
                     >
-                      Aceitar
+                      {t('detail.checklist.aceitar')}
                     </BotaoAcao>
                   )}
                   {doc.enviadoEm && !doc.aceitoEm && (
                     <BotaoRecusar
                       disabled={acaoEmCurso}
+                      erroMotivo={erros.porCampo.motivo}
                       onConfirmar={(motivo) =>
                         executar(() => recusarDocumento(numeroPedido, doc.tipoDocumento, motivo))
                       }
@@ -153,6 +175,7 @@ export default function DetalhePedido() {
                   {doc.aceitoEm && (
                     <BotaoReabrir
                       disabled={acaoEmCurso}
+                      erroMotivo={erros.porCampo.motivo}
                       onConfirmar={(motivo) =>
                         executar(() => reabrirDocumento(numeroPedido, doc.tipoDocumento, motivo))
                       }
@@ -165,14 +188,14 @@ export default function DetalhePedido() {
         </table>
       </Secao>
 
-      <Secao titulo="Ações do pedido">
+      <Secao titulo={t('detail.secoes.acoes')}>
         <div className="flex flex-wrap gap-2">
           {pedido.estado === 'DOCUMENTACAO_ACEITA' && (
             <BotaoAcao
               disabled={acaoEmCurso}
               onClick={() => executar(() => confirmarPagamentoParcial(numeroPedido))}
             >
-              Confirmar pagamento parcial
+              {t('detail.acoes.confirmarPagamentoParcial')}
             </BotaoAcao>
           )}
           {pedido.estado === 'EMBARCADO' && (
@@ -180,7 +203,7 @@ export default function DetalhePedido() {
               disabled={acaoEmCurso}
               onClick={() => executar(() => confirmarPagamentoSaldo(numeroPedido))}
             >
-              Confirmar pagamento de saldo
+              {t('detail.acoes.confirmarPagamentoSaldo')}
             </BotaoAcao>
           )}
           {transicoesDisponiveis.map((novoEstado) => (
@@ -190,31 +213,33 @@ export default function DetalhePedido() {
               variante={novoEstado === 'CANCELADO' ? 'perigo' : 'padrao'}
               onClick={() => executar(() => transicionar(numeroPedido, novoEstado))}
             >
-              {novoEstado === 'CANCELADO' ? 'Cancelar pedido' : `Avançar para ${novoEstado}`}
+              {novoEstado === 'CANCELADO'
+                ? t('detail.acoes.cancelarPedido')
+                : t('detail.acoes.avancarPara', { estado: t(`enums.pedidoEstado.${novoEstado}`) })}
             </BotaoAcao>
           ))}
           <a
-            href={urlStatusPdf(numeroPedido)}
+            href={urlStatusPdf(numeroPedido, i18n.language)}
             target="_blank"
             rel="noreferrer"
             className="rounded-md border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-100"
           >
-            Gerar PDF de status
+            {t('detail.acoes.gerarPdf')}
           </a>
         </div>
       </Secao>
 
-      <Secao titulo="Histórico de transições">
+      <Secao titulo={t('detail.secoes.historico')}>
         <ul className="space-y-2 text-sm">
           {historico.map((h, i) => (
             <li key={i} className="flex justify-between border-b border-stone-100 pb-2">
               <span>
-                {h.estadoAnterior} → {h.estadoNovo}
+                {t(`enums.pedidoEstado.${h.estadoAnterior}`)} → {t(`enums.pedidoEstado.${h.estadoNovo}`)}
               </span>
-              <span className="text-stone-500">{new Date(h.ocorridoEm).toLocaleString('pt-BR')}</span>
+              <span className="text-stone-500">{formatarData(h.ocorridoEm, i18n.language)}</span>
             </li>
           ))}
-          {historico.length === 0 && <li className="text-stone-500">Sem transições registradas.</li>}
+          {historico.length === 0 && <li className="text-stone-500">{t('detail.historico.vazio')}</li>}
         </ul>
       </Secao>
     </div>
@@ -268,31 +293,37 @@ function BotaoAcao({
 
 function BotaoReabrir({
   disabled,
+  erroMotivo,
   onConfirmar,
 }: {
   disabled?: boolean
+  erroMotivo?: string
   onConfirmar: (motivo: string) => void
 }) {
+  const { t } = useTranslation()
   const [abrindo, setAbrindo] = useState(false)
   const [motivo, setMotivo] = useState('')
 
   if (!abrindo) {
     return (
       <BotaoAcao disabled={disabled} onClick={() => setAbrindo(true)}>
-        Reabrir
+        {t('detail.checklist.reabrir')}
       </BotaoAcao>
     )
   }
 
   return (
     <span className="inline-flex items-center gap-2">
-      <input
-        autoFocus
-        placeholder="Motivo"
-        value={motivo}
-        onChange={(e) => setMotivo(e.target.value)}
-        className="input w-40"
-      />
+      <span className="inline-flex flex-col">
+        <input
+          autoFocus
+          placeholder={t('detail.checklist.motivoPlaceholder')}
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value)}
+          className="input w-40"
+        />
+        {erroMotivo && <span className="mt-1 text-xs text-red-600">{erroMotivo}</span>}
+      </span>
       <BotaoAcao
         disabled={disabled || !motivo}
         onClick={() => {
@@ -301,7 +332,7 @@ function BotaoReabrir({
           setMotivo('')
         }}
       >
-        Confirmar
+        {t('detail.checklist.confirmar')}
       </BotaoAcao>
     </span>
   )
@@ -309,18 +340,21 @@ function BotaoReabrir({
 
 function BotaoRecusar({
   disabled,
+  erroMotivo,
   onConfirmar,
 }: {
   disabled?: boolean
+  erroMotivo?: string
   onConfirmar: (motivo: string) => void
 }) {
+  const { t } = useTranslation()
   const [abrindo, setAbrindo] = useState(false)
   const [motivo, setMotivo] = useState('')
 
   if (!abrindo) {
     return (
       <BotaoAcao variante="perigo" disabled={disabled} onClick={() => setAbrindo(true)}>
-        Recusar
+        {t('detail.checklist.recusar')}
       </BotaoAcao>
     )
   }
@@ -329,14 +363,17 @@ function BotaoRecusar({
 
   return (
     <span className="inline-flex items-center gap-2">
-      <input
-        autoFocus
-        placeholder="Motivo (aparece no PDF do cliente)"
-        value={motivo}
-        maxLength={500}
-        onChange={(e) => setMotivo(e.target.value)}
-        className="input w-56"
-      />
+      <span className="inline-flex flex-col">
+        <input
+          autoFocus
+          placeholder={t('detail.checklist.motivoRecusaPlaceholder')}
+          value={motivo}
+          maxLength={500}
+          onChange={(e) => setMotivo(e.target.value)}
+          className="input w-56"
+        />
+        {erroMotivo && <span className="mt-1 text-xs text-red-600">{erroMotivo}</span>}
+      </span>
       <BotaoAcao
         variante="perigo"
         disabled={disabled || !motivoValido}
@@ -346,7 +383,7 @@ function BotaoRecusar({
           setMotivo('')
         }}
       >
-        Confirmar
+        {t('detail.checklist.confirmar')}
       </BotaoAcao>
     </span>
   )
@@ -355,12 +392,17 @@ function BotaoRecusar({
 function FormularioLogistica({
   pedido,
   desabilitado,
+  erroCiaMaritima,
+  erroNumeroContainer,
   onSalvar,
 }: {
   pedido: PedidoResponse
   desabilitado: boolean
+  erroCiaMaritima?: string
+  erroNumeroContainer?: string
   onSalvar: (ciaMaritima: string | undefined, numeroContainer: string | undefined) => void
 }) {
+  const { t } = useTranslation()
   const [ciaMaritima, setCiaMaritima] = useState(pedido.ciaMaritima ?? '')
   const [numeroContainer, setNumeroContainer] = useState(pedido.numeroContainer ?? '')
 
@@ -372,26 +414,28 @@ function FormularioLogistica({
   return (
     <div className="flex flex-wrap items-end gap-4">
       <label className="text-sm">
-        <span className="mb-1 block font-medium text-stone-700">Cia marítima</span>
+        <span className="mb-1 block font-medium text-stone-700">{t('campos.ciaMaritima')}</span>
         <input
           value={ciaMaritima}
           onChange={(e) => setCiaMaritima(e.target.value)}
           className="input"
         />
+        {erroCiaMaritima && <span className="mt-1 block text-xs text-red-600">{erroCiaMaritima}</span>}
       </label>
       <label className="text-sm">
-        <span className="mb-1 block font-medium text-stone-700">Nº container</span>
+        <span className="mb-1 block font-medium text-stone-700">{t('campos.numeroContainer')}</span>
         <input
           value={numeroContainer}
           onChange={(e) => setNumeroContainer(e.target.value)}
           className="input"
         />
+        {erroNumeroContainer && <span className="mt-1 block text-xs text-red-600">{erroNumeroContainer}</span>}
       </label>
       <BotaoAcao
         disabled={desabilitado}
         onClick={() => onSalvar(ciaMaritima || undefined, numeroContainer || undefined)}
       >
-        Salvar
+        {t('detail.logistica.salvar')}
       </BotaoAcao>
     </div>
   )

@@ -1,9 +1,152 @@
 # Status — TrackCargo
 
 ## Última atualização
-21/set/2026 — i18n-infra Bloco 2b (padrão de data explícito por
-idioma) concluído, branch `feature/i18n-infra` (requisito
-irrevogável: pt-BR/en/es)
+22/set/2026 — i18n-infra concluído (Passo 1 + Bloco 3, frontend),
+branch `feature/i18n-infra` (requisito irrevogável: pt-BR/en/es).
+PR ainda não aberto — aguardando confirmação final do usuário.
+
+## Regra de projeto a partir de agora
+**Nenhum texto de interface fixo no código.** Todo texto visível ao
+usuário (backend: PDF de status; frontend: as 4 telas) vem de uma
+chave de tradução/mensagem — nunca uma string literal hardcoded na
+lógica de apresentação. Exceções explícitas: texto livre digitado
+pelo usuário (motivo da recusa, produto, consignee, cliente etc. —
+nunca traduzido) e o nome do produto ("TrackCargo").
+
+## i18n-infra — Passo 1 (correção de tradução em inglês) concluído
+
+Antes do Bloco 3: `status.enviado`/`tabela.ultimoEnvio` no bundle
+`en` usavam "Shipped"/"Last shipped" — em comércio exterior isso
+significa **embarcado** (estado `EMBARCADO`, já traduzido como
+"Shipped" em `estado.embarcado`), confundindo com "documento
+enviado". Trocado pra "Sent"/"Last sent". `estado.embarcado`
+continua "Shipped" (único lugar do bundle onde "embarque do navio"
+de fato aparece). Revisão das demais chaves `en` com o mesmo olhar
+(enviado/embarcado, recusado/rejeitado): sem outra colisão —
+"Documentation sent"/"Original documents sent" já usavam "sent";
+"Rejected"/"awaiting resend" já eram consistentes entre
+`status.recusado` e `recusa.template`. Commit separado e pequeno
+(`087e61a`), conforme pedido.
+
+```
+Tests run: 131, Failures: 0, Errors: 0, Skipped: 0 — BUILD SUCCESS
+```
+
+## i18n-infra — Bloco 3 (frontend) concluído
+
+Último bloco da internacionalização. Cobre as 4 telas
+(`App.tsx`/`ListaPedidos.tsx`/`CriarPedido.tsx`/`DetalhePedido.tsx`),
+tradução de erro pelo código, `Intl` pra data/número/moeda, e o link
+do PDF passando o idioma ativo. Detalhes completos em
+`docs/SPEC.md`, seção "Frontend multilíngue — i18n-infra Bloco 3".
+
+**Dependências novas:**
+- `i18next`, `react-i18next`, `i18next-browser-languagedetector`
+  (produção) — biblioteca de i18n decidida no Bloco 0.
+- `@testing-library/react`, `@testing-library/jest-dom`, `jsdom`
+  (dev, só teste) — o projeto não tinha ambiente DOM configurado pro
+  Vitest ainda; os testes de erro pedidos exigem renderização real,
+  não só teste de função pura. `vite.config.ts` ganhou
+  `test: { environment: 'jsdom', setupFiles: [...] }`.
+
+**Resumo do que mudou:**
+- `src/i18n/` novo: `index.ts` (init do i18next + detector de
+  navegador + persistência em `localStorage`), `locales/{pt,en,es}.json`
+  (mesma árvore de chaves nos 3), `erros.ts` (`traduzirErro()`,
+  tradução de erro pelo código com interpolação), `intl.ts`
+  (`formatarData`/`formatarNumero`/`formatarMoeda` via `Intl` nativo).
+- `App.tsx`: seletor de idioma no header (`<select>` chamando
+  `i18n.changeLanguage`, persistência automática via
+  `i18next-browser-languagedetector`).
+- `ListaPedidos.tsx`/`CriarPedido.tsx`/`DetalhePedido.tsx`: as ~67
+  strings fixas + os 32 valores de enum (`PedidoEstado`,
+  `TipoDocumento`, `Incoterm`, `FormaPagamento`, `Moeda`) viraram
+  chave de tradução. Texto livre (motivo, produto, consignee, cliente)
+  **não** foi tocado — continua exatamente como o usuário digita.
+- `CriarPedido.tsx`/`DetalhePedido.tsx`: erro de validação aparece
+  junto ao campo (`Campo`/`FormularioLogistica`/diálogos de motivo
+  ganharam prop `erro?`), o resto no banner — usando o `campo`
+  completo do backend (`condicoesComerciais.percentualParcial`) como
+  chave de busca.
+- `api/types.ts`: `ErrorResponse` com o shape novo do Bloco 1
+  (`parametros`/`campos`, sem `estadoAtual`/`estadoSolicitado`
+  top-level). `api/client.ts`: `urlStatusPdf(numeroPedido, idioma)`
+  monta `?lang=`.
+- `DetalhePedido.tsx`: link do PDF passa `i18n.language` como `lang`.
+
+**Testes novos:** `paridadeDeChaves.test.ts` (compara as chaves dos 3
+JSONs, achatadas); `erros.render.test.tsx` (2 testes de renderização
+real com `@testing-library/react`, usando os JSONs **reais**
+capturados da API nos Blocos 1/2 — colados abaixo, não reinventados
+— um erro de validação com dois campos inválidos em `CriarPedido` e
+um `TRANSICAO_INVALIDA` em `DetalhePedido`).
+
+**Achado durante a implementação:** o jsdom do ambiente de teste
+reporta `navigator.language` como `"en-US"` — sem `localStorage`
+prévio, os testes detectavam `"en"` em vez do `"pt"` padrão da
+aplicação. Os testes de renderização forçam
+`i18n.changeLanguage('pt')` num `beforeEach` — comportamento de
+ambiente de teste, não bug da detecção real (em um navegador de
+verdade reflete o idioma de fato configurado ali, que é o
+comportamento desejado).
+
+## Evidência real — frontend (saída bruta, `frontend/`)
+
+```
+$ npx tsc -b --force
+EXIT=0   (sem saída — limpo)
+
+$ npm run lint
+> oxlint
+src/pages/DetalhePedido.tsx:410:5: warning react(set-state-in-effect): Calling setState synchronously within an effect can trigger cascading renders help: Effects should synchronize React with external systems. Calling setState synchronously inside an effect starts another render and is usually unnecessary. Derive the value during render, initialize state directly, or update it from the event that caused the change. Use an effect only when synchronizing with an external system.
+EXIT=0
+
+$ npm run build
+> tsc -b && vite build
+vite v8.3.0 building client environment for production...
+✓ 130 modules transformed.
+dist/index.html                   0.45 kB │ gzip:   0.29 kB
+dist/assets/index-rXJ1zd8J.css   13.04 kB │ gzip:   3.46 kB
+dist/assets/index-Ykx6_5Ut.js   348.22 kB │ gzip: 107.33 kB
+✓ built in 618ms
+EXIT=0
+
+$ npm run test
+> vitest run
+ Test Files  3 passed (3)
+      Tests  5 passed (5)
+   Duration  1.86s
+EXIT=0
+```
+
+**Backend (`mvn test`, sem mudança de código nesta parte — só
+confirmando estado atual):**
+```
+Tests run: 131, Failures: 0, Errors: 0, Skipped: 0 — BUILD SUCCESS
+```
+
+**Validação visual não foi feita nesta sessão.** Tentei um smoke test
+com Playwright (Chromium pré-instalado no ambiente), mas o pacote
+Node `playwright` não está instalado no projeto nem globalmente — só
+o binário do browser. Não adicionei a dependência só pra essa
+checagem pontual (gasto de dependência sem uso contínuo). A cobertura
+real de "isso renderiza certo" vem dos 2 testes de renderização com
+JSON real (`erros.render.test.tsx`) + `tsc`/`build` limpos — a
+confirmação visual final (seletor de idioma no header, layout dos
+erros por campo, formatação de moeda) fica por conta do usuário.
+
+## Estado de saída (i18n-infra completo — Blocos 0, 1, 2, 2b, Passo 1, 3)
+Fechado: contrato de erro granular por código (backend), PDF
+multilíngue com padrão de data explícito (backend), tradução em
+inglês corrigida, frontend inteiro traduzido (pt/en/es) com detecção
+de navegador + seletor manual persistido, erro por código com
+interpolação e campo-vs-banner, `Intl` pra data/número/moeda, link do
+PDF com idioma ativo. `docs/SPEC.md` atualizado (seção nova "Frontend
+multilíngue"). Regra "nenhum texto de interface fixo" registrada
+acima. **PR ainda não aberto** — abrindo a seguir, com a evidência
+completa (backend + frontend) na descrição, sem merge.
+
+---
 
 ## i18n-infra — Bloco 2b (padrão de data explícito) concluído
 

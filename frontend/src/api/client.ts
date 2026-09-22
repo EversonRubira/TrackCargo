@@ -132,6 +132,6 @@ export function recusarDocumento(
   )
 }
 
-export function urlStatusPdf(numeroPedido: string): string {
-  return `${API_BASE_URL}/pedidos/${encodeURIComponent(numeroPedido)}/status.pdf`
+export function urlStatusPdf(numeroPedido: string, idioma: string): string {
+  return `${API_BASE_URL}/pedidos/${encodeURIComponent(numeroPedido)}/status.pdf?lang=${encodeURIComponent(idioma)}`
 }

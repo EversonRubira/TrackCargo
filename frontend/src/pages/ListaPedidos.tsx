@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { ApiError, listarPedidos } from '../api/client'
 import { PEDIDO_ESTADOS, type PedidoEstado, type PedidoResponse } from '../api/types'
+import { traduzirErro } from '../i18n/erros'
+import { formatarData } from '../i18n/intl'
 
 export default function ListaPedidos() {
+  const { t, i18n } = useTranslation()
   const [pedidos, setPedidos] = useState<PedidoResponse[]>([])
   const [estado, setEstado] = useState<PedidoEstado | ''>('')
   const [carregando, setCarregando] = useState(true)
@@ -15,30 +19,31 @@ export default function ListaPedidos() {
     listarPedidos(estado || undefined)
       .then(setPedidos)
       .catch((e: unknown) => {
-        setErro(e instanceof ApiError ? e.message : 'Falha ao carregar pedidos.')
+        setErro(e instanceof ApiError ? traduzirErro(t, e).mensagemGeral : t('list.erroCarregar'))
       })
       .finally(() => setCarregando(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado])
 
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Pedidos</h1>
+        <h1 className="text-2xl font-semibold">{t('list.titulo')}</h1>
         <select
           value={estado}
           onChange={(e) => setEstado(e.target.value as PedidoEstado | '')}
           className="rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
         >
-          <option value="">Todos os estados</option>
+          <option value="">{t('list.todosOsEstados')}</option>
           {PEDIDO_ESTADOS.map((e) => (
             <option key={e} value={e}>
-              {e}
+              {t(`enums.pedidoEstado.${e}`)}
             </option>
           ))}
         </select>
       </div>
 
-      {carregando && <p className="text-stone-500">Carregando...</p>}
+      {carregando && <p className="text-stone-500">{t('list.carregando')}</p>}
       {erro && <p className="text-red-600">{erro}</p>}
 
       {!carregando && !erro && (
@@ -46,13 +51,13 @@ export default function ListaPedidos() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-stone-200 bg-stone-100 text-stone-600">
               <tr>
-                <th className="px-4 py-3">Número</th>
-                <th className="px-4 py-3">Cliente</th>
-                <th className="px-4 py-3">Consignee</th>
-                <th className="px-4 py-3">Produto</th>
-                <th className="px-4 py-3">Cia marítima</th>
-                <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3">Atualizado em</th>
+                <th className="px-4 py-3">{t('list.colunas.numero')}</th>
+                <th className="px-4 py-3">{t('list.colunas.cliente')}</th>
+                <th className="px-4 py-3">{t('list.colunas.consignee')}</th>
+                <th className="px-4 py-3">{t('list.colunas.produto')}</th>
+                <th className="px-4 py-3">{t('list.colunas.ciaMaritima')}</th>
+                <th className="px-4 py-3">{t('list.colunas.estado')}</th>
+                <th className="px-4 py-3">{t('list.colunas.atualizadoEm')}</th>
               </tr>
             </thead>
             <tbody>
@@ -72,18 +77,18 @@ export default function ListaPedidos() {
                   <td className="px-4 py-3">{p.ciaMaritima ?? '—'}</td>
                   <td className="px-4 py-3">
                     <span className="rounded-full bg-stone-100 px-2 py-1 text-xs font-medium text-stone-700">
-                      {p.estado}
+                      {t(`enums.pedidoEstado.${p.estado}`)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-stone-500">
-                    {new Date(p.atualizadoEm).toLocaleString('pt-BR')}
+                    {formatarData(p.atualizadoEm, i18n.language)}
                   </td>
                 </tr>
               ))}
               {pedidos.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-stone-500">
-                    Nenhum pedido encontrado.
+                    {t('list.vazio')}
                   </td>
                 </tr>
               )}

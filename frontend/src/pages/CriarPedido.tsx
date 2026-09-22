@@ -1,7 +1,9 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { ApiError, buscarProximoNumeroSugerido, criarPedido } from '../api/client'
 import { FORMAS_PAGAMENTO, INCOTERMS, MOEDAS, type CriarPedidoRequest } from '../api/types'
+import { traduzirErro, type ErrosTraduzidos } from '../i18n/erros'
 
 const ESTADO_INICIAL: CriarPedidoRequest = {
   numeroPedido: '',
@@ -22,11 +24,14 @@ const ESTADO_INICIAL: CriarPedidoRequest = {
   },
 }
 
+const SEM_ERROS: ErrosTraduzidos = { porCampo: {}, mensagemGeral: null }
+
 export default function CriarPedido() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [form, setForm] = useState<CriarPedidoRequest>(ESTADO_INICIAL)
   const [enviando, setEnviando] = useState(false)
-  const [erro, setErro] = useState<string | null>(null)
+  const [erros, setErros] = useState<ErrosTraduzidos>(SEM_ERROS)
 
   useEffect(() => {
     buscarProximoNumeroSugerido()
@@ -34,6 +39,7 @@ export default function CriarPedido() {
       .catch(() => {
         // Falha na sugestao nao impede o cadastro - usuario preenche manualmente.
       })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function campo<K extends keyof CriarPedidoRequest>(chave: K, valor: CriarPedidoRequest[K]) {
@@ -53,12 +59,12 @@ export default function CriarPedido() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setEnviando(true)
-    setErro(null)
+    setErros(SEM_ERROS)
     try {
       const pedido = await criarPedido(form)
       navigate(`/pedidos/${encodeURIComponent(pedido.numeroPedido)}`)
     } catch (e) {
-      setErro(e instanceof ApiError ? e.message : 'Falha ao criar pedido.')
+      setErros(e instanceof ApiError ? traduzirErro(t, e) : { porCampo: {}, mensagemGeral: t('create.erroGenerico') })
     } finally {
       setEnviando(false)
     }
@@ -66,10 +72,10 @@ export default function CriarPedido() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h1 className="mb-6 text-2xl font-semibold">Novo pedido</h1>
+      <h1 className="mb-6 text-2xl font-semibold">{t('create.titulo')}</h1>
       <form onSubmit={onSubmit} className="space-y-8">
-        <Secao titulo="Identificação">
-          <Campo label="Número do pedido">
+        <Secao titulo={t('create.secoes.identificacao')}>
+          <Campo label={t('campos.numeroPedido')} erro={erros.porCampo.numeroPedido}>
             <input
               required
               value={form.numeroPedido}
@@ -77,7 +83,7 @@ export default function CriarPedido() {
               className="input"
             />
           </Campo>
-          <Campo label="Cliente">
+          <Campo label={t('campos.cliente')} erro={erros.porCampo.cliente}>
             <input
               required
               value={form.cliente}
@@ -85,7 +91,7 @@ export default function CriarPedido() {
               className="input"
             />
           </Campo>
-          <Campo label="Consignee">
+          <Campo label={t('campos.consignee')} erro={erros.porCampo.consignee}>
             <input
               required
               value={form.consignee}
@@ -93,7 +99,7 @@ export default function CriarPedido() {
               className="input"
             />
           </Campo>
-          <Campo label="País de destino">
+          <Campo label={t('campos.paisDestino')} erro={erros.porCampo.paisDestino}>
             <input
               required
               value={form.paisDestino}
@@ -101,7 +107,7 @@ export default function CriarPedido() {
               className="input"
             />
           </Campo>
-          <Campo label="Porto de origem">
+          <Campo label={t('campos.portoOrigem')} erro={erros.porCampo.portoOrigem}>
             <input
               required
               value={form.portoOrigem}
@@ -109,7 +115,7 @@ export default function CriarPedido() {
               className="input"
             />
           </Campo>
-          <Campo label="Porto de destino">
+          <Campo label={t('campos.portoDestino')} erro={erros.porCampo.portoDestino}>
             <input
               required
               value={form.portoDestino}
@@ -119,8 +125,8 @@ export default function CriarPedido() {
           </Campo>
         </Secao>
 
-        <Secao titulo="Descrição da mercadoria">
-          <Campo label="Produto">
+        <Secao titulo={t('create.secoes.descricaoMercadoria')}>
+          <Campo label={t('campos.produto')} erro={erros.porCampo.produto}>
             <input
               required
               value={form.produto}
@@ -128,7 +134,7 @@ export default function CriarPedido() {
               className="input"
             />
           </Campo>
-          <Campo label="Quantidade">
+          <Campo label={t('campos.quantidade')} erro={erros.porCampo.quantidade}>
             <input
               required
               type="number"
@@ -138,7 +144,7 @@ export default function CriarPedido() {
               className="input"
             />
           </Campo>
-          <Campo label="Unidade de medida">
+          <Campo label={t('campos.unidadeMedida')} erro={erros.porCampo.unidadeMedida}>
             <input
               required
               value={form.unidadeMedida}
@@ -148,8 +154,11 @@ export default function CriarPedido() {
           </Campo>
         </Secao>
 
-        <Secao titulo="Condições comerciais">
-          <Campo label="Preço acordado">
+        <Secao titulo={t('create.secoes.condicoesComerciais')}>
+          <Campo
+            label={t('campos.precoAcordado')}
+            erro={erros.porCampo['condicoesComerciais.precoAcordado']}
+          >
             <input
               required
               type="number"
@@ -160,7 +169,7 @@ export default function CriarPedido() {
               className="input"
             />
           </Campo>
-          <Campo label="Moeda">
+          <Campo label={t('campos.moeda')} erro={erros.porCampo['condicoesComerciais.moeda']}>
             <select
               value={form.condicoesComerciais.moeda}
               onChange={(e) =>
@@ -170,12 +179,12 @@ export default function CriarPedido() {
             >
               {MOEDAS.map((m) => (
                 <option key={m} value={m}>
-                  {m}
+                  {t(`enums.moeda.${m}`)}
                 </option>
               ))}
             </select>
           </Campo>
-          <Campo label="Incoterm">
+          <Campo label={t('campos.incoterm')} erro={erros.porCampo['condicoesComerciais.incoterm']}>
             <select
               value={form.condicoesComerciais.incoterm}
               onChange={(e) =>
@@ -185,12 +194,15 @@ export default function CriarPedido() {
             >
               {INCOTERMS.map((i) => (
                 <option key={i} value={i}>
-                  {i}
+                  {t(`enums.incoterm.${i}`)}
                 </option>
               ))}
             </select>
           </Campo>
-          <Campo label="Forma de pagamento">
+          <Campo
+            label={t('campos.formaPagamento')}
+            erro={erros.porCampo['condicoesComerciais.formaPagamento']}
+          >
             <select
               value={form.condicoesComerciais.formaPagamento}
               onChange={(e) =>
@@ -203,12 +215,15 @@ export default function CriarPedido() {
             >
               {FORMAS_PAGAMENTO.map((f) => (
                 <option key={f} value={f}>
-                  {f}
+                  {t(`enums.formaPagamento.${f}`)}
                 </option>
               ))}
             </select>
           </Campo>
-          <Campo label="Percentual parcial (%)">
+          <Campo
+            label={t('campos.percentualParcial')}
+            erro={erros.porCampo['condicoesComerciais.percentualParcial']}
+          >
             <input
               required
               type="number"
@@ -221,14 +236,14 @@ export default function CriarPedido() {
           </Campo>
         </Secao>
 
-        {erro && <p className="text-red-600">{erro}</p>}
+        {erros.mensagemGeral && <p className="text-red-600">{erros.mensagemGeral}</p>}
 
         <button
           type="submit"
           disabled={enviando}
           className="rounded-md bg-stone-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50"
         >
-          {enviando ? 'Criando...' : 'Criar pedido'}
+          {enviando ? t('create.criando') : t('create.criarPedido')}
         </button>
       </form>
     </div>
@@ -244,11 +259,12 @@ function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
   )
 }
 
-function Campo({ label, children }: { label: string; children: ReactNode }) {
+function Campo({ label, erro, children }: { label: string; erro?: string; children: ReactNode }) {
   return (
     <label className="block text-sm">
       <span className="mb-1 block font-medium text-stone-700">{label}</span>
       {children}
+      {erro && <span className="mt-1 block text-xs text-red-600">{erro}</span>}
     </label>
   )
 }

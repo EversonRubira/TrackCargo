@@ -170,9 +170,23 @@ export interface ProximoNumeroResponse {
   numeroPedidoSugerido: string
 }
 
+// Contrato novo (i18n-infra Bloco 1, backend): erro/mensagem
+// continuam existindo (mensagem e so texto de depuracao em PT, o
+// front nao exibe mais ela direto). parametros carrega os dados de
+// um erro de dominio (numeroPedido, tipo, estadoAtual/estadoSolicitado
+// - os dois ultimos nao sao mais campos proprios, ver Iso6346/SPEC.md
+// do backend); campos carrega os erros de validacao, um item por
+// campo invalido. Os dois sao opcionais e mutuamente exclusivos -
+// nunca os dois preenchidos ao mesmo tempo.
+export interface CampoErro {
+  campo: string | null
+  codigo: string
+  parametros: Record<string, unknown>
+}
+
 export interface ErrorResponse {
   erro: string
   mensagem: string
-  estadoAtual: PedidoEstado | null
-  estadoSolicitado: PedidoEstado | null
+  parametros: Record<string, unknown> | null
+  campos: CampoErro[] | null
 }

@@ -1,0 +1,174 @@
+{
+  "app": {
+    "novoPedido": "New order"
+  },
+  "idioma": {
+    "pt": "Português",
+    "en": "English",
+    "es": "Español"
+  },
+  "campos": {
+    "numeroPedido": "Order number",
+    "cliente": "Customer",
+    "consignee": "Consignee",
+    "paisDestino": "Destination country",
+    "portoOrigem": "Origin port",
+    "portoDestino": "Destination port",
+    "produto": "Product",
+    "quantidade": "Quantity",
+    "unidadeMedida": "Unit of measure",
+    "precoAcordado": "Agreed price",
+    "moeda": "Currency",
+    "incoterm": "Incoterm",
+    "formaPagamento": "Payment method",
+    "percentualParcial": "Partial percentage (%)",
+    "motivo": "Reason",
+    "ciaMaritima": "Shipping line",
+    "numeroContainer": "Container no.",
+    "novoEstado": "New state"
+  },
+  "list": {
+    "titulo": "Orders",
+    "todosOsEstados": "All states",
+    "colunas": {
+      "numero": "Number",
+      "cliente": "Customer",
+      "consignee": "Consignee",
+      "produto": "Product",
+      "ciaMaritima": "Shipping line",
+      "estado": "State",
+      "atualizadoEm": "Updated at"
+    },
+    "carregando": "Loading...",
+    "vazio": "No orders found.",
+    "erroCarregar": "Failed to load orders."
+  },
+  "create": {
+    "titulo": "New order",
+    "secoes": {
+      "identificacao": "Identification",
+      "descricaoMercadoria": "Cargo description",
+      "condicoesComerciais": "Commercial terms"
+    },
+    "criando": "Creating...",
+    "criarPedido": "Create order",
+    "erroGenerico": "Failed to create order."
+  },
+  "detail": {
+    "carregando": "Loading...",
+    "erroCarregar": "Failed to load order.",
+    "erroAcao": "Action failed.",
+    "secoes": {
+      "dadosPedido": "Order data",
+      "logistica": "Logistics",
+      "checklist": "Document checklist",
+      "acoes": "Order actions",
+      "historico": "Transition history"
+    },
+    "campos": {
+      "paisDestino": "Destination country",
+      "portoOrigem": "Origin port",
+      "portoDestino": "Destination port",
+      "quantidade": "Quantity",
+      "precoAcordado": "Agreed price",
+      "incoterm": "Incoterm",
+      "formaPagamento": "Payment method",
+      "percentualParcial": "Partial percentage"
+    },
+    "checklist": {
+      "documento": "Document",
+      "enviado": "Sent",
+      "aceito": "Accepted",
+      "acoes": "Actions",
+      "sim": "Yes",
+      "nao": "No",
+      "enviar": "Send",
+      "aceitar": "Accept",
+      "recusar": "Reject",
+      "reabrir": "Reopen",
+      "confirmar": "Confirm",
+      "motivoPlaceholder": "Reason",
+      "motivoRecusaPlaceholder": "Reason (shown on the customer's PDF)"
+    },
+    "acoes": {
+      "confirmarPagamentoParcial": "Confirm partial payment",
+      "confirmarPagamentoSaldo": "Confirm balance payment",
+      "cancelarPedido": "Cancel order",
+      "avancarPara": "Advance to {{estado}}",
+      "gerarPdf": "Generate status PDF"
+    },
+    "historico": {
+      "vazio": "No transitions recorded."
+    },
+    "logistica": {
+      "salvar": "Save"
+    }
+  },
+  "enums": {
+    "pedidoEstado": {
+      "CRIADO": "Created",
+      "DOCUMENTACAO_ENVIADA": "Documentation sent",
+      "DOCUMENTACAO_ACEITA": "Documentation accepted",
+      "PAGAMENTO_PARCIAL_RECEBIDO": "Partial payment received",
+      "EMBARCADO": "Shipped",
+      "PAGAMENTO_SALDO_RECEBIDO": "Balance payment received",
+      "DOCUMENTOS_ORIGINAIS_ENVIADOS": "Original documents sent",
+      "ENTREGUE": "Delivered",
+      "CANCELADO": "Cancelled"
+    },
+    "tipoDocumento": {
+      "INVOICE": "Invoice",
+      "PACKING_LIST": "Packing list",
+      "BL": "BL",
+      "CERTIFICADO_SANITARIO": "Sanitary certificate",
+      "DOCUMENTO_ADICIONAL": "Additional document"
+    },
+    "incoterm": {
+      "EXW": "EXW",
+      "FCA": "FCA",
+      "FAS": "FAS",
+      "FOB": "FOB",
+      "CFR": "CFR",
+      "CIF": "CIF",
+      "CPT": "CPT",
+      "CIP": "CIP",
+      "DAP": "DAP",
+      "DPU": "DPU",
+      "DDP": "DDP"
+    },
+    "formaPagamento": {
+      "CARTA_CREDITO": "Letter of credit",
+      "TT_ANTECIPADO": "Advance T/T",
+      "TT_CONTRA_DOCUMENTOS": "T/T against documents",
+      "COBRANCA_DOCUMENTARIA": "Documentary collection"
+    },
+    "moeda": {
+      "USD": "USD",
+      "EUR": "EUR",
+      "BRL": "BRL"
+    }
+  },
+  "erros": {
+    "generico": "Something went wrong. Please try again.",
+    "validacao": {
+      "OBRIGATORIO": "{{campo}} is required",
+      "POSITIVO": "{{campo}} must be greater than zero",
+      "FORA_DA_FAIXA": "{{campo}} must be between {{min}} and {{max}}",
+      "TAMANHO_MAXIMO": "{{campo}} must be at most {{max}} characters",
+      "CONTAINER_ISO6346_INVALIDO": "{{campo}} is not a valid container number (ISO 6346)",
+      "VALOR_ENUM_INVALIDO": "{{campo}}: accepted values are {{valoresAceitos}}"
+    },
+    "dominio": {
+      "PEDIDO_NAO_ENCONTRADO": "Order {{numeroPedido}} not found",
+      "CHECKLIST_DOCUMENTO_NAO_ENCONTRADO": "Document {{tipo}} not found for order {{numeroPedido}}",
+      "TRANSICAO_INVALIDA": "Cannot advance from {{estadoAtual}} to {{estadoSolicitado}}",
+      "DOCUMENTO_JA_ACEITO": "Document {{tipo}} has already been accepted",
+      "DOCUMENTO_NAO_ENVIADO": "Document {{tipo}} has not been sent yet",
+      "DOCUMENTO_NAO_ACEITO": "Document {{tipo}} has not been accepted yet",
+      "DOCUMENTO_ADICIONAL_JA_EXISTE": "Order {{numeroPedido}} already has an additional document",
+      "PARAMETRO_INVALIDO": "Invalid value for {{parametro}}: {{valor}}",
+      "JSON_MALFORMADO": "Could not parse the request"
+    },
+    "campoGenerico": "{{campo}}: invalid value"
+  }
+}

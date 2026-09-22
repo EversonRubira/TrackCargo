@@ -1061,6 +1061,174 @@ minúsculas/com hífen seria salvo e normalizado no backend, mas o
 campo continuaria mostrando o texto bruto digitado em vez do valor
 normalizado que a API de fato gravou.
 
+## Frontend multilíngue — i18n-infra Bloco 3
+
+Terceiro e último bloco da internacionalização (Bloco 1: contrato de
+erro granular por código; Bloco 2/2b: PDF multilíngue). Este bloco
+cobre o frontend inteiro — depois dele, **nenhum texto de interface
+fixo pode entrar no código**: todo texto visível ao usuário vem de
+uma chave de tradução (`t('...')`), exceto texto livre digitado pelo
+usuário (motivo, produto, consignee) e o nome do produto
+("TrackCargo"), que não traduz.
+
+### Biblioteca: `i18next` + `react-i18next` + `i18next-browser-languagedetector`
+
+Escolhida no Bloco 0 (trade-off já registrado ali): interpolação de
+parâmetros e fallback de locale prontos, sem reinventar — um
+dicionário caseiro exigiria escrever isso a mão pra pouco ganho real
+de dependência a menos. `i18next-browser-languagedetector` detecta o
+idioma do navegador (`navigator.language`) e persiste a escolha
+manual em `localStorage` (`detection: { order: ['localStorage',
+'navigator'], caches: ['localStorage'] }`) — o seletor manual
+(`<select>` no header, `App.tsx`) chama `i18n.changeLanguage(idioma)`,
+que já persiste sozinho, sem mecanismo próprio de storage.
+`nonExplicitSupportedLngs: true` faz `"pt-BR"`/`"en-US"` do navegador
+caírem em `"pt"`/`"en"` (só 3 idiomas suportados, sem variantes
+regionais). Recursos embutidos direto no bundle
+(`src/i18n/locales/{pt,en,es}.json`, sem backend HTTP) — inicialização
+síncrona, sem precisar de `Suspense`.
+
+### Estrutura de chaves (`src/i18n/locales/*.json`)
+
+Um arquivo por idioma, mesma árvore de chaves nos 3 (`campos.*`,
+`list.*`, `create.*`, `detail.*`, `enums.*`, `erros.*`, `idioma.*`,
+`app.*`) — `PdfStatusMessagesParityTest`-like no front:
+`paridadeDeChaves.test.ts` achata os 3 JSONs em chaves com ponto e
+compara os 3 conjuntos, travando qualquer chave esquecida num idioma.
+`campos.*` é compartilhado entre o rótulo do formulário de criação
+(`Campo label={t('campos.numeroPedido')}`) e a tradução de erro de
+validação (mesmo campo, mesmo rótulo — sem duplicar a lista de nomes
+de campo em dois lugares).
+
+### Rótulos de enum (32 valores: `PedidoEstado`, `TipoDocumento`,
+`Incoterm`, `FormaPagamento`, `Moeda`)
+
+Chave direta por valor (`enums.pedidoEstado.CRIADO`,
+`enums.tipoDocumento.INVOICE` etc.), chamada inline nos 4 componentes
+via `t()` — sem módulo/tabela de mapeamento própria, o valor do enum
+já É a chave de tradução. `Incoterm` e `Moeda` mantêm o mesmo texto
+nos 3 idiomas de propósito (códigos internacionais padronizados do
+comércio exterior, não português/inglês/espanhol).
+
+### Tradução de erros pelo código (`src/i18n/erros.ts`)
+
+`traduzirErro(t, apiError)` — nunca exibe `ErrorResponse.mensagem`
+(texto de depuração em PT do backend, ver Bloco 1) na UI, só traduz
+por `erro`/`campos[].codigo` + `parametros`:
+
+- **`campos` (validação) preenchido:** cada `CampoErro` vira uma
+  entrada em `porCampo[campo completo]` (ex.:
+  `"condicoesComerciais.percentualParcial"`) — a UI usa essa chave
+  completa pra achar o campo do formulário certo (`erros.porCampo['condicoesComerciais.percentualParcial']`
+  em `CriarPedido.tsx`). O rótulo interpolado na mensagem
+  (`{{campo}}`) usa só o último segmento do caminho
+  (`rotuloCampo()`), traduzido via `campos.*` — "Percentual parcial
+  deve estar entre 0 e 100", não "condicoesComerciais.percentualParcial
+  deve estar...". `campo === null` (JSON malformado sem campo
+  identificável, caso defensivo do backend) cai no banner
+  (`mensagemGeral`) em vez de `porCampo`.
+- **`erro` é um código de domínio conhecido** (`PEDIDO_NAO_ENCONTRADO`,
+  `TRANSICAO_INVALIDA` etc.) **e `campos` é `null`:** vira
+  `mensagemGeral`, exibida no banner — não há um "campo do formulário"
+  óbvio pra a maioria desses (pedido inteiro, documento, transição de
+  estado).
+- **Parâmetros que são enum do backend** (`tipo` → `TipoDocumento`,
+  `estadoAtual`/`estadoSolicitado` → `PedidoEstado`) são traduzidos
+  antes de interpolar (`CHAVE_ENUM_POR_PARAMETRO`) — a mensagem de
+  `TRANSICAO_INVALIDA` mostra "CRIADO"/"Criado" traduzido, não o
+  código cru. Parâmetros que são lista (`valoresAceitos`) viram string
+  separada por vírgula antes de interpolar — i18next não formata
+  array sozinho.
+- **Código desconhecido** (nem em `campos[].codigo` nem na lista de
+  códigos de domínio conhecidos): `erros.generico`, uma mensagem
+  genérica traduzida — nunca o texto cru do backend.
+- **`parametros` e `campos` são tratados como opcionais** (podem vir
+  `null` cada um, nunca os dois preenchidos — contrato do Bloco 1) —
+  `traduzirErro` checa presença antes de usar qualquer um dos dois,
+  sem assumir que um vem sempre preenchido.
+
+### Erro de campo perto do campo, resto no banner
+
+`CriarPedido.tsx`: `Campo` ganhou prop opcional `erro?: string`,
+renderizada como texto vermelho abaixo do input/select — cada
+`<Campo>` do formulário passa `erros.porCampo['<caminho>']` (caminho
+completo, igual ao `campo` do backend). `erros.mensagemGeral` (se
+houver) aparece no banner abaixo do formulário, igual antes.
+`DetalhePedido.tsx`: mesmo padrão pro `FormularioLogistica`
+(`ciaMaritima`/`numeroContainer`) e pros diálogos de motivo
+(`BotaoReabrir`/`BotaoRecusar`, campo `"motivo"`) — erro de domínio
+(a maioria das ações desta tela) continua só no banner.
+
+### Datas, números e moeda via `Intl` (`src/i18n/intl.ts`)
+
+Substituem os 2 `toLocaleString('pt-BR')` hardcoded (`ListaPedidos.tsx`,
+histórico em `DetalhePedido.tsx`) e a concatenação sem formatação
+`${precoAcordado} ${moeda}`:
+- `formatarData(iso, idioma)` → `Intl.DateTimeFormat(idioma, {dateStyle:
+  'short', timeStyle: 'short'})`.
+- `formatarNumero(valor, idioma)` → `Intl.NumberFormat(idioma)`
+  (quantidade, percentual parcial).
+- `formatarMoeda(valor, moeda, idioma)` → `Intl.NumberFormat(idioma,
+  {style: 'currency', currency: moeda})` — usa o código ISO da
+  `Moeda` do pedido (`USD`/`EUR`/`BRL`) como moeda de exibição,
+  formatada no padrão do idioma ativo (ex.: `US$ 85.000,00` em pt,
+  `$85,000.00` em en, `85.000,00 US$` em es — símbolo/posição/separador
+  decidido pelo próprio `Intl`, não hardcoded).
+
+### PDF: idioma ativo vai no link
+
+`urlStatusPdf(numeroPedido, idioma)` (antes só recebia `numeroPedido`)
+monta `?lang=<idioma ativo>` — o botão "Gerar PDF de status" em
+`DetalhePedido.tsx` passa `i18n.language`, então o PDF baixado já sai
+no mesmo idioma da tela.
+
+### `frontend/src/api/types.ts` — `ErrorResponse` atualizado
+
+`estadoAtual`/`estadoSolicitado` saíram do topo (shape antigo, nunca
+usado por nenhum componente — confirmado por grep antes do Bloco 1
+no backend). Shape novo, espelhando o contrato real:
+```ts
+export interface CampoErro {
+  campo: string | null
+  codigo: string
+  parametros: Record<string, unknown>
+}
+export interface ErrorResponse {
+  erro: string
+  mensagem: string
+  parametros: Record<string, unknown> | null
+  campos: CampoErro[] | null
+}
+```
+
+### Testes novos
+
+- `paridadeDeChaves.test.ts`: achata e compara as chaves dos 3 JSONs
+  (ver acima).
+- `erros.render.test.tsx`: dois testes de **renderização real**
+  (`@testing-library/react` + `jsdom`, dependências novas só de
+  teste — o projeto não tinha ambiente DOM configurado pro Vitest
+  ainda, `vite.config.ts` ganhou `test: { environment: 'jsdom',
+  setupFiles: [...] }`), usando os **JSONs reais** capturados da API
+  rodando nos Blocos 1/2 (colados no `docs/STATUS.md` do backend, não
+  reinventados): um erro de validação com dois campos inválidos
+  (`FORA_DA_FAIXA` + `POSITIVO`) renderizado em `CriarPedido`,
+  confirmando a mensagem traduzida perto de cada campo e que o texto
+  cru de `mensagem` nunca aparece; um `TRANSICAO_INVALIDA` real
+  renderizado em `DetalhePedido`, confirmando o banner traduzido com
+  os estados convertidos de código pra rótulo legível.
+
+### Achado durante a implementação: jsdom detecta idioma diferente do padrão da aplicação
+
+`i18next-browser-languagedetector` lê `navigator.language`, que no
+jsdom do ambiente de teste é `"en-US"` — sem `localStorage` prévio,
+o idioma detectado nos testes é `"en"`, não o `"pt"` padrão da
+aplicação. Os testes de renderização forçam `i18n.changeLanguage('pt')`
+num `beforeEach` antes de cada asserção em português — comportamento
+de ambiente de teste, não um bug da detecção (em um navegador real
+isso reflete o idioma de fato configurado no SO/browser do usuário,
+que é o comportamento desejado).
+
 ## Tabela de correlação — critério de aceitação × teste
 
 | Critério (do PRD) | Tipo de teste | O que valida |
@@ -1118,6 +1286,8 @@ normalizado que a API de fato gravou.
 | PDF de status gerado nos 3 idiomas (pt/en/es) com rótulos, título, cabeçalhos de tabela e status calculado traduzidos; os 9 estados de `PedidoEstado` têm rótulo legível (não mais `name()` cru); idioma desconhecido cai no padrão `pt` sem lançar exceção; selo de pedido cancelado traduzido; data fixa formatada com padrão explícito por idioma (`dd/MM/yyyy HH:mm` pt/es, `dd MMM yyyy HH:mm` en), sem depender do locale da JVM | Unitário (PDF real) | `PdfStatusServiceTest.geraPdfNosTresIdiomasComRotulosTraduzidos` + `idiomaDesconhecidoCaiNoPadraoPt` + `seloDePedidoCanceladoSaiTraduzidoNosTresIdiomas` + `dataFixaFormatadaComPadraoExplicitoPorIdiomaSemDependerDoLocaleDaJvm` |
 | As chaves dos 3 arquivos de mensagens do PDF (`pdf-status-messages_{pt,en,es}.properties`) são idênticas — nenhuma chave esquecida num idioma | Unitário | `PdfStatusMessagesParityTest.asTresChavesDeMensagensSaoIdenticasEmPtEnEEs` |
 | `GET /pedidos/{numero}/status.pdf?lang=` repassa o idioma pro service (default `pt` quando omitido) | API | `PedidoControllerTest.gerarPdfStatusRetorna200ComContentTypePdf` (default) + `gerarPdfStatusComLangRepassaIdiomaParaOService` |
+| As chaves dos 3 arquivos de tradução do frontend (`src/i18n/locales/{pt,en,es}.json`) são idênticas — nenhuma chave esquecida num idioma | Frontend (Vitest) | `paridadeDeChaves.test.ts` |
+| Erro de validação real (dois campos inválidos) renderizado em `CriarPedido` mostra a mensagem traduzida perto de cada campo, nunca o texto cru de `mensagem`; erro de domínio real (`TRANSICAO_INVALIDA`) renderizado em `DetalhePedido` mostra o banner traduzido com os estados convertidos pra rótulo legível | Frontend (Vitest + Testing Library, JSON real da API) | `erros.render.test.tsx` (2 testes) |
 
 ## Fora de escopo desta Spec
 
