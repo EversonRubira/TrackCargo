@@ -14,10 +14,10 @@ import jakarta.validation.constraints.Size;
 // chamando a mesma classe pura Iso6346. @Size(max=30) continua como
 // limite defensivo sobre o valor bruto (antes de normalizar).
 public record AtualizarLogisticaRequest(
-        @Size(max = 100)
+        @Size(max = 100, message = "ciaMaritima deve ter no maximo 100 caracteres")
         String ciaMaritima,
 
-        @Size(max = 30)
+        @Size(max = 30, message = "numeroContainer deve ter no maximo 30 caracteres")
         @NumeroContainerIso6346
         String numeroContainer
 ) {

@@ -3,8 +3,7 @@ package com.eversonrubira.exporttracking.pedido.web.dto;
 import com.eversonrubira.exporttracking.pedido.FormaPagamento;
 import com.eversonrubira.exporttracking.pedido.Incoterm;
 import com.eversonrubira.exporttracking.pedido.Moeda;
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
+import com.eversonrubira.exporttracking.pedido.validacao.FaixaDecimal;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
@@ -35,8 +34,7 @@ public record CondicoesComerciaisRequest(
         FormaPagamento formaPagamento,
 
         @NotNull(message = "percentualParcial e obrigatorio")
-        @DecimalMin(value = "0", message = "percentualParcial deve estar entre 0 e 100")
-        @DecimalMax(value = "100", message = "percentualParcial deve estar entre 0 e 100")
+        @FaixaDecimal(min = 0, max = 100, message = "percentualParcial deve estar entre 0 e 100")
         BigDecimal percentualParcial
 ) {
 }

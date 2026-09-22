@@ -109,7 +109,8 @@ public class PedidoController {
     }
 
     @GetMapping(value = "/{numeroPedido}/status.pdf", produces = MediaType.APPLICATION_PDF_VALUE)
-    public ResponseEntity<byte[]> statusPdf(@PathVariable String numeroPedido) {
+    public ResponseEntity<byte[]> statusPdf(@PathVariable String numeroPedido,
+                                             @RequestParam(name = "lang", defaultValue = "pt") String lang) {
         // Composicao dos dados do PDF (Pedido + PedidoService + ChecklistService)
         // repetida aqui por enquanto - quando a automacao de e-mail (backlog v2)
         // existir, ela vai precisar exatamente dessa mesma composicao antes de
@@ -121,7 +122,7 @@ public class PedidoController {
         List<ChecklistDocumento> checklist = pedidoService.buscarChecklist(numeroPedido);
         Map<TipoDocumento, List<PedidoOcorrencia>> recusasPorDocumento =
                 checklistService.buscarRecusasPorDocumento(numeroPedido);
-        byte[] pdf = pdfStatusService.gerar(pedido, historico, checklist, recusasPorDocumento);
+        byte[] pdf = pdfStatusService.gerar(pedido, historico, checklist, recusasPorDocumento, lang);
         return ResponseEntity.ok().body(pdf);
     }
 

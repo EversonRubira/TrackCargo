@@ -11,31 +11,31 @@ import java.math.BigDecimal;
 
 public record CriarPedidoRequest(
         @NotBlank(message = "numeroPedido e obrigatorio")
-        @Size(max = 50)
+        @Size(max = 50, message = "numeroPedido deve ter no maximo 50 caracteres")
         String numeroPedido,
 
         @NotBlank(message = "cliente e obrigatorio")
-        @Size(max = 200)
+        @Size(max = 200, message = "cliente deve ter no maximo 200 caracteres")
         String cliente,
 
         @NotBlank(message = "consignee e obrigatorio")
-        @Size(max = 200)
+        @Size(max = 200, message = "consignee deve ter no maximo 200 caracteres")
         String consignee,
 
         @NotBlank(message = "paisDestino e obrigatorio")
-        @Size(max = 100)
+        @Size(max = 100, message = "paisDestino deve ter no maximo 100 caracteres")
         String paisDestino,
 
         @NotBlank(message = "portoOrigem e obrigatorio")
-        @Size(max = 100)
+        @Size(max = 100, message = "portoOrigem deve ter no maximo 100 caracteres")
         String portoOrigem,
 
         @NotBlank(message = "portoDestino e obrigatorio")
-        @Size(max = 100)
+        @Size(max = 100, message = "portoDestino deve ter no maximo 100 caracteres")
         String portoDestino,
 
         @NotBlank(message = "produto e obrigatorio")
-        @Size(max = 100)
+        @Size(max = 100, message = "produto deve ter no maximo 100 caracteres")
         String produto,
 
         @NotNull(message = "quantidade e obrigatoria")
@@ -43,7 +43,7 @@ public record CriarPedidoRequest(
         BigDecimal quantidade,
 
         @NotBlank(message = "unidadeMedida e obrigatoria")
-        @Size(max = 10)
+        @Size(max = 10, message = "unidadeMedida deve ter no maximo 10 caracteres")
         String unidadeMedida,
 
         @NotNull(message = "condicoesComerciais e obrigatorio")

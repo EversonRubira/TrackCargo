@@ -1,0 +1,174 @@
+{
+  "app": {
+    "novoPedido": "Novo pedido"
+  },
+  "idioma": {
+    "pt": "Português",
+    "en": "English",
+    "es": "Español"
+  },
+  "campos": {
+    "numeroPedido": "Número do pedido",
+    "cliente": "Cliente",
+    "consignee": "Consignee",
+    "paisDestino": "País de destino",
+    "portoOrigem": "Porto de origem",
+    "portoDestino": "Porto de destino",
+    "produto": "Produto",
+    "quantidade": "Quantidade",
+    "unidadeMedida": "Unidade de medida",
+    "precoAcordado": "Preço acordado",
+    "moeda": "Moeda",
+    "incoterm": "Incoterm",
+    "formaPagamento": "Forma de pagamento",
+    "percentualParcial": "Percentual parcial (%)",
+    "motivo": "Motivo",
+    "ciaMaritima": "Cia marítima",
+    "numeroContainer": "Nº container",
+    "novoEstado": "Novo estado"
+  },
+  "list": {
+    "titulo": "Pedidos",
+    "todosOsEstados": "Todos os estados",
+    "colunas": {
+      "numero": "Número",
+      "cliente": "Cliente",
+      "consignee": "Consignee",
+      "produto": "Produto",
+      "ciaMaritima": "Cia marítima",
+      "estado": "Estado",
+      "atualizadoEm": "Atualizado em"
+    },
+    "carregando": "Carregando...",
+    "vazio": "Nenhum pedido encontrado.",
+    "erroCarregar": "Falha ao carregar pedidos."
+  },
+  "create": {
+    "titulo": "Novo pedido",
+    "secoes": {
+      "identificacao": "Identificação",
+      "descricaoMercadoria": "Descrição da mercadoria",
+      "condicoesComerciais": "Condições comerciais"
+    },
+    "criando": "Criando...",
+    "criarPedido": "Criar pedido",
+    "erroGenerico": "Falha ao criar pedido."
+  },
+  "detail": {
+    "carregando": "Carregando...",
+    "erroCarregar": "Falha ao carregar pedido.",
+    "erroAcao": "Ação falhou.",
+    "secoes": {
+      "dadosPedido": "Dados do pedido",
+      "logistica": "Logística",
+      "checklist": "Checklist de documentos",
+      "acoes": "Ações do pedido",
+      "historico": "Histórico de transições"
+    },
+    "campos": {
+      "paisDestino": "País destino",
+      "portoOrigem": "Porto origem",
+      "portoDestino": "Porto destino",
+      "quantidade": "Quantidade",
+      "precoAcordado": "Preço acordado",
+      "incoterm": "Incoterm",
+      "formaPagamento": "Forma de pagamento",
+      "percentualParcial": "Percentual parcial"
+    },
+    "checklist": {
+      "documento": "Documento",
+      "enviado": "Enviado",
+      "aceito": "Aceito",
+      "acoes": "Ações",
+      "sim": "Sim",
+      "nao": "Não",
+      "enviar": "Enviar",
+      "aceitar": "Aceitar",
+      "recusar": "Recusar",
+      "reabrir": "Reabrir",
+      "confirmar": "Confirmar",
+      "motivoPlaceholder": "Motivo",
+      "motivoRecusaPlaceholder": "Motivo (aparece no PDF do cliente)"
+    },
+    "acoes": {
+      "confirmarPagamentoParcial": "Confirmar pagamento parcial",
+      "confirmarPagamentoSaldo": "Confirmar pagamento de saldo",
+      "cancelarPedido": "Cancelar pedido",
+      "avancarPara": "Avançar para {{estado}}",
+      "gerarPdf": "Gerar PDF de status"
+    },
+    "historico": {
+      "vazio": "Sem transições registradas."
+    },
+    "logistica": {
+      "salvar": "Salvar"
+    }
+  },
+  "enums": {
+    "pedidoEstado": {
+      "CRIADO": "Criado",
+      "DOCUMENTACAO_ENVIADA": "Documentação enviada",
+      "DOCUMENTACAO_ACEITA": "Documentação aceita",
+      "PAGAMENTO_PARCIAL_RECEBIDO": "Pagamento parcial recebido",
+      "EMBARCADO": "Embarcado",
+      "PAGAMENTO_SALDO_RECEBIDO": "Pagamento de saldo recebido",
+      "DOCUMENTOS_ORIGINAIS_ENVIADOS": "Documentos originais enviados",
+      "ENTREGUE": "Entregue",
+      "CANCELADO": "Cancelado"
+    },
+    "tipoDocumento": {
+      "INVOICE": "Invoice",
+      "PACKING_LIST": "Packing list",
+      "BL": "BL",
+      "CERTIFICADO_SANITARIO": "Certificado sanitário",
+      "DOCUMENTO_ADICIONAL": "Documento adicional"
+    },
+    "incoterm": {
+      "EXW": "EXW",
+      "FCA": "FCA",
+      "FAS": "FAS",
+      "FOB": "FOB",
+      "CFR": "CFR",
+      "CIF": "CIF",
+      "CPT": "CPT",
+      "CIP": "CIP",
+      "DAP": "DAP",
+      "DPU": "DPU",
+      "DDP": "DDP"
+    },
+    "formaPagamento": {
+      "CARTA_CREDITO": "Carta de crédito",
+      "TT_ANTECIPADO": "TT antecipado",
+      "TT_CONTRA_DOCUMENTOS": "TT contra documentos",
+      "COBRANCA_DOCUMENTARIA": "Cobrança documentária"
+    },
+    "moeda": {
+      "USD": "USD",
+      "EUR": "EUR",
+      "BRL": "BRL"
+    }
+  },
+  "erros": {
+    "generico": "Ocorreu um erro. Tente novamente.",
+    "validacao": {
+      "OBRIGATORIO": "{{campo}} é obrigatório",
+      "POSITIVO": "{{campo}} deve ser maior que zero",
+      "FORA_DA_FAIXA": "{{campo}} deve estar entre {{min}} e {{max}}",
+      "TAMANHO_MAXIMO": "{{campo}} deve ter no máximo {{max}} caracteres",
+      "CONTAINER_ISO6346_INVALIDO": "{{campo}} não é um número de container válido (padrão ISO 6346)",
+      "VALOR_ENUM_INVALIDO": "{{campo}}: valores aceitos são {{valoresAceitos}}"
+    },
+    "dominio": {
+      "PEDIDO_NAO_ENCONTRADO": "Pedido {{numeroPedido}} não encontrado",
+      "CHECKLIST_DOCUMENTO_NAO_ENCONTRADO": "Documento {{tipo}} não encontrado para o pedido {{numeroPedido}}",
+      "TRANSICAO_INVALIDA": "Não é possível avançar de {{estadoAtual}} para {{estadoSolicitado}}",
+      "DOCUMENTO_JA_ACEITO": "Documento {{tipo}} já foi aceito",
+      "DOCUMENTO_NAO_ENVIADO": "Documento {{tipo}} ainda não foi enviado",
+      "DOCUMENTO_NAO_ACEITO": "Documento {{tipo}} ainda não foi aceito",
+      "DOCUMENTO_ADICIONAL_JA_EXISTE": "Pedido {{numeroPedido}} já tem um documento adicional",
+      "PARAMETRO_INVALIDO": "Valor inválido para {{parametro}}: {{valor}}",
+      "JSON_MALFORMADO": "Não foi possível interpretar a requisição"
+    },
+    "campoGenerico": "{{campo}}: valor inválido"
+  }
+}

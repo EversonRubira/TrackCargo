@@ -537,6 +537,64 @@ colunas `Documento | Status | Último envio | Aceito em`:
 > separado. Único gotcha real de stack nesta peça foi o pacote do
 > OpenPDF, não o Spring.
 
+### PDF de status multilíngue (i18n-infra Bloco 2)
+
+Requisito irrevogável de internacionalização (pt-BR/en/es) — o PDF é
+o único lugar do backend que gera **texto final pro cliente ler**
+(diferente dos erros, que o Bloco 1 passou a devolver por código pro
+front traduzir). `PdfStatusService.gerar(...)` ganhou um parâmetro
+`String idioma`; o endpoint `GET /pedidos/{numero}/status.pdf` ganhou
+`?lang=` (`@RequestParam(name = "lang", defaultValue = "pt")`).
+
+- **`ResourceBundle`, não `MessageSource`.** `PdfStatusService` não
+  tem contexto Spring nenhum — não injeta repositório/service, só
+  recebe dados prontos como parâmetro (decisão de design já registrada
+  acima, "servico puro"). Injetar um `MessageSource` só pra isso
+  quebraria essa pureza sem necessidade; `ResourceBundle.getBundle(...)`
+  é Java puro, testável sem subir contexto nenhum — mesmo princípio já
+  aplicado ao resto da classe.
+- **Arquivos:** `src/main/resources/i18n/pdf-status-messages_{pt,en,es}.properties`
+  (chaves com acento via `\uXXXX`, não caractere bruto — evita
+  depender de qual `Charset` o `ResourceBundle.Control` padrão usa pra
+  ler `.properties`, comportamento que já mudou entre versões do
+  Java). Sem arquivo "raiz" (`pdf-status-messages.properties`) de
+  fallback — desnecessário, porque `localeDoIdioma(String)` já
+  normaliza qualquer valor fora de `{pt, en, es}` pro padrão `pt`
+  *antes* de chamar `ResourceBundle.getBundle`, então o método nunca
+  pede um idioma que não tenha arquivo.
+- **Rótulos legíveis pros 9 estados de `PedidoEstado`** (não só os 8
+  da barra de progresso) — resolve o gap real que a barra tinha desde
+  a Fase 4/F03: sempre mostrou `PedidoEstado.name()` cru
+  (`DOCUMENTACAO_ENVIADA`), nunca teve rótulo legível, nem só em PT.
+  Novo método `chaveEstado(PedidoEstado)`, mesmo padrão de
+  `chaveDocumento(TipoDocumento)` (ex-`rotulo(TipoDocumento)`) —
+  `switch` expression **sem `default`**, estado novo sem chave vira
+  erro de compilação.
+- **Datas via padrão explícito por idioma, guardado no próprio bundle
+  (`formato.data`)** — `DateTimeFormatter.ofPattern(textos.getString("formato.data"), locale)`,
+  chamado por `pt`/`es` (`dd/MM/yyyy HH:mm`) e `en` (`dd MMM yyyy HH:mm`,
+  mês abreviado — evita a ambiguidade dia/mês do formato numérico
+  puro em inglês). O `Locale` só entra pra escrever o nome do mês no
+  idioma certo quando o padrão usa letras (`MMM`), não afeta `pt`/`es`
+  (padrão 100% numérico). **Substituiu `DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)`**
+  (tentativa inicial, Bloco 2): esse método delega ao dado de locale
+  CLDR do JDK em execução, que não é garantia nossa e pode mudar de
+  versão pra versão — o padrão explícito no bundle é a mesma
+  informação que qualquer outro rótulo traduzido, sob o mesmo
+  mecanismo de paridade de chaves (`PdfStatusMessagesParityTest`
+  cobre `formato.data` também, sem tratamento especial). Confirmado
+  com data fixa (não `LocalDateTime.now()`) contra a string exata
+  esperada nos 3 idiomas — ver evidência real no `docs/STATUS.md`.
+- **Templates com parâmetro via `MessageFormat.format(...)`** (título
+  "Status do pedido {0}", "Desde: {0}", recusa "Recusado em {0} (envio
+  de {1}): {2}") — únicas 3 chaves com `{n}`; o resto são rótulos
+  fixos por idioma, sem interpolação.
+- **`ValidacaoCodigoMapperTest`-like:** `PdfStatusMessagesParityTest`
+  (pacote `pedido.pdf`) carrega os 3 bundles e compara `keySet()` —
+  trava uma chave esquecida num idioma antes que vire
+  `MissingResourceException` em produção, só quando alguém pedir o
+  PDF naquele idioma específico.
+
 **`PATCH /pedidos/{numeroPedido}/logistica` — por que é um endpoint
 separado, sem regra de transição de estado nenhuma:** diferente do
 resto do fluxo (documentação, pagamentos, embarque), `ciaMaritima` e
@@ -646,27 +704,168 @@ o valor de cada `@PathVariable` depois de já ter casado o segmento, daí
 manualmente com `curl` (`GET`, incluindo a rota aninhada `/historico`)
 antes e depois do ajuste — 400 sem o customizer, 200 com ele.
 
-Toda resposta de erro segue corpo padrão:
+Toda resposta de erro segue corpo padrão (contrato v2, ver
+"Contrato de erro — i18n-infra Bloco 1" abaixo pra por que mudou):
 ```json
-{ "erro": "TRANSICAO_INVALIDA", "mensagem": "...", "estadoAtual": "...", "estadoSolicitado": "..." }
+{ "erro": "...", "mensagem": "...", "parametros": { }, "campos": [ ] }
 ```
-`estadoAtual`/`estadoSolicitado` só são preenchidos pra
-`TransicaoInvalidaException`; nos demais casos ficam `null`.
+`mensagem` é texto de depuração em PT — não é mais o contrato que o
+cliente traduz (isso passou a ser `erro`/`campos[].codigo` +
+`parametros`, ver mais abaixo). `parametros` carrega os dados de um
+erro de domínio (ex: `numeroPedido`, `tipo`, `estadoAtual`/
+`estadoSolicitado`); `campos` carrega os erros de validação, um item
+por campo inválido. **Os dois são mutuamente exclusivos e opcionais:
+`parametros` vem `null` em todo erro de validação (`campos` é quem
+carrega o dado ali) e `campos` vem `null` em todo erro de domínio
+(`parametros` é quem carrega o dado ali) — nunca os dois preenchidos
+ao mesmo tempo, e o cliente deve tratar ambos como campos opcionais
+do contrato, não como sempre presentes.**
 
 ### Mapeamento de exceção → status HTTP (`GlobalExceptionHandler`)
 
-| Exceção | HTTP | `erro` |
+| Exceção | HTTP | `erro` | `parametros` |
+|---|---|---|---|
+| `PedidoNaoEncontradoException` | 404 | `PEDIDO_NAO_ENCONTRADO` | `{numeroPedido}` |
+| `ChecklistDocumentoNaoEncontradoException` | 404 | `CHECKLIST_DOCUMENTO_NAO_ENCONTRADO` | `{numeroPedido, tipo}` |
+| `TransicaoInvalidaException` | 409 | `TRANSICAO_INVALIDA` | `{estadoAtual, estadoSolicitado}` |
+| `DocumentoJaAceitoException` | 409 | `DOCUMENTO_JA_ACEITO` — reusada por `enviar()`, `aceitar()` e `recusar()` (V5) | `{tipo}` |
+| `DocumentoNaoEnviadoException` | 409 | `DOCUMENTO_NAO_ENVIADO` — reusada por `aceitar()` e `recusar()` (V5) | `{tipo}` |
+| `DocumentoNaoAceitoException` | 409 | `DOCUMENTO_NAO_ACEITO` | `{tipo}` |
+| `DocumentoAdicionalJaExisteException` | 409 | `DOCUMENTO_ADICIONAL_JA_EXISTE` | `{numeroPedido}` |
+| `MethodArgumentNotValidException` (Bean Validation) | 400 | `VALIDACAO_INVALIDA` | `null` — granularidade vai em `campos[]` |
+| `MethodArgumentTypeMismatchException` (ex: `{tipo}` inválido na rota) | 400 | `PARAMETRO_INVALIDO` | `{parametro, valor}` |
+| `HttpMessageNotReadableException` — enum inválido no body (ex: `"moeda": "Yen"`) | 400 | `VALIDACAO_INVALIDA` | `null` — vai em `campos[0]` com código `VALOR_ENUM_INVALIDO` |
+| `HttpMessageNotReadableException` — JSON malformado sem campo identificável | 400 | `JSON_MALFORMADO` | `null` |
+
+## Contrato de erro — i18n-infra Bloco 1
+
+Motivação (PRD de i18n, pt-BR/en/es): o front vai traduzir os erros
+pelo código, não pelo texto — mas o código geral `VALIDACAO_INVALIDA`
+sozinho não diferencia "quantidade negativa" de "percentual fora da
+faixa". Bloco 1 granularizou isso **só no contrato do backend**
+(nenhuma tradução ainda — isso é Bloco 3, frontend). `mensagem`
+continua existindo (texto de depuração em PT, log/debug), mas deixou
+de ser o que o cliente exibe.
+
+### `ErrorResponse` (shape novo, substitui o anterior)
+
+```java
+public record ErrorResponse(
+    String erro,
+    String mensagem,
+    Map<String, Object> parametros,
+    List<CampoErro> campos
+) {
+    public record CampoErro(String campo, String codigo, Map<String, Object> parametros) {}
+}
+```
+
+**`parametros` e `campos` são opcionais e mutuamente exclusivos:**
+`parametros` é `null` em todo erro de validação (`VALIDACAO_INVALIDA`/
+`JSON_MALFORMADO`) — o dado granular ali mora em `campos`; `campos` é
+`null` em todo erro de domínio — o dado ali mora em `parametros`. O
+front (Bloco 3) trata os dois como campos opcionais do contrato
+(nunca assume que um dos dois vem sempre preenchido).
+
+**Mudança de shape que quebra compatibilidade:** os campos top-level
+`estadoAtual`/`estadoSolicitado` (só usados por `TRANSICAO_INVALIDA`)
+foram removidos e dobrados dentro de `parametros`
+(`{"estadoAtual": "...", "estadoSolicitado": "..."}`) — evita duas
+formas de representar o mesmo dado. Nenhum consumidor real dependia
+deles ainda (confirmado por grep no frontend antes da mudança — só o
+texto `mensagem` era exibido).
+
+### Códigos de validação (`campos[].codigo`)
+
+| Código | Quando dispara | `parametros` |
 |---|---|---|
-| `PedidoNaoEncontradoException` | 404 | `PEDIDO_NAO_ENCONTRADO` |
-| `ChecklistDocumentoNaoEncontradoException` | 404 | `CHECKLIST_DOCUMENTO_NAO_ENCONTRADO` |
-| `TransicaoInvalidaException` | 409 | `TRANSICAO_INVALIDA` |
-| `DocumentoJaAceitoException` | 409 | `DOCUMENTO_JA_ACEITO` — reusada por `enviar()`, `aceitar()` e `recusar()` (V5) |
-| `DocumentoNaoEnviadoException` | 409 | `DOCUMENTO_NAO_ENVIADO` — reusada por `aceitar()` e `recusar()` (V5) |
-| `DocumentoNaoAceitoException` | 409 | `DOCUMENTO_NAO_ACEITO` |
-| `DocumentoAdicionalJaExisteException` | 409 | `DOCUMENTO_ADICIONAL_JA_EXISTE` |
-| `MethodArgumentNotValidException` (Bean Validation) | 400 | `VALIDACAO_INVALIDA` |
-| `MethodArgumentTypeMismatchException` (ex: `{tipo}` inválido na rota) | 400 | `PARAMETRO_INVALIDO` |
-| `HttpMessageNotReadableException` (corpo JSON malformado ou enum inválido no body, ex: `"moeda": "Yen"`) | 400 | `VALIDACAO_INVALIDA` — ver seção "Endurecimento de validação de campos" abaixo |
+| `OBRIGATORIO` | `@NotNull`/`@NotBlank` | `{}` |
+| `POSITIVO` | `@Positive` | `{}` |
+| `FORA_DA_FAIXA` | `@FaixaDecimal` (substitui `@DecimalMin`+`@DecimalMax`, ver abaixo) | `{min, max}` (números, não texto) |
+| `TAMANHO_MAXIMO` | `@Size` | `{max}` |
+| `CONTAINER_ISO6346_INVALIDO` | `@NumeroContainerIso6346` | `{}` |
+| `VALOR_ENUM_INVALIDO` | enum inválido no corpo JSON (ex: `"moeda": "Yen"`) | `{valoresAceitos: [...]}` |
+
+`JSON_MALFORMADO` e `PARAMETRO_INVALIDO` são códigos de erro **gerais**
+(`erro`, não `campos[].codigo`) — ver tabela de mapeamento acima.
+
+### Mapeamento anotação → código (`ValidacaoCodigoMapper`, pacote `pedido.web`)
+
+Ponto único: `CODIGO_POR_ANOTACAO` (`Map<String, CodigoInfo>`, chave =
+nome simples da anotação Bean Validation, obtido via
+`FieldError.unwrap(ConstraintViolation.class)` +
+`getConstraintDescriptor().getAnnotation().annotationType().getSimpleName()`
+— não via `FieldError.getCode()`, que devolve o código *mais
+específico* do `MessageCodesResolver`, não o nome puro da anotação).
+`CodigoInfo` guarda o código e a lista de atributos que viram
+`parametros` (ex: `Size` → `["max"]`) — a extração dos valores é
+genérica a partir de `ConstraintDescriptor.getAttributes()`, sem
+`if/else` por anotação. Anotação sem entrada no mapa cai em
+`VALIDACAO_INVALIDA` (fallback, com log de aviso) em vez de quebrar.
+`ValidacaoCodigoMapperTest` varre por reflexão as anotações usadas
+nos DTOs e falha se alguma ficar sem entrada — trava o esquecimento
+antes de virar bug em produção.
+
+### `@FaixaDecimal` (substitui `@DecimalMin`+`@DecimalMax`)
+
+Mesmo padrão de `@NumeroContainerIso6346` (constraint + validator
+dedicados, sem depender de mais nada do Spring). Motivo de existir:
+`@DecimalMin`/`@DecimalMax` disparam **um de cada vez** (só o limite
+violado gera `FieldError`) — o mapeamento genérico só conseguiria
+extrair `min` OU `max`, nunca os dois juntos, e o código
+`FORA_DA_FAIXA` promete os dois sempre completos. Uma anotação só,
+com os dois limites como atributos próprios, resolve isso sem
+tratamento especial no mapeador. `null` é válido (obrigatoriedade é
+do `@NotNull` no mesmo campo, sem duplicar a checagem); faixa
+inclusiva nos dois extremos.
+
+### Exemplos reais (evidência capturada da API rodando)
+
+Validação com dois campos inválidos:
+```json
+{
+  "erro": "VALIDACAO_INVALIDA",
+  "mensagem": "condicoesComerciais.percentualParcial: percentualParcial deve estar entre 0 e 100; quantidade: quantidade deve ser maior que zero",
+  "parametros": null,
+  "campos": [
+    { "campo": "condicoesComerciais.percentualParcial", "codigo": "FORA_DA_FAIXA", "parametros": { "min": 0.0, "max": 100.0 } },
+    { "campo": "quantidade", "codigo": "POSITIVO", "parametros": {} }
+  ]
+}
+```
+
+`TRANSICAO_INVALIDA`:
+```json
+{
+  "erro": "TRANSICAO_INVALIDA",
+  "mensagem": "Transicao invalida de CRIADO para PAGAMENTO_SALDO_RECEBIDO",
+  "parametros": { "estadoAtual": "CRIADO", "estadoSolicitado": "PAGAMENTO_SALDO_RECEBIDO" },
+  "campos": null
+}
+```
+
+Enum inválido no corpo:
+```json
+{
+  "erro": "VALIDACAO_INVALIDA",
+  "mensagem": "condicoesComerciais.moeda: valores aceitos sao USD, EUR e BRL",
+  "parametros": null,
+  "campos": [
+    { "campo": "condicoesComerciais.moeda", "codigo": "VALOR_ENUM_INVALIDO", "parametros": { "valoresAceitos": ["USD", "EUR", "BRL"] } }
+  ]
+}
+```
+
+### Exceções de domínio ganham dados próprios
+
+As 6 exceções que carregavam dado só na mensagem interpolada
+(`PedidoNaoEncontradoException`, `ChecklistDocumentoNaoEncontradoException`,
+`DocumentoJaAceitoException`, `DocumentoNaoEnviadoException`,
+`DocumentoNaoAceitoException`, `DocumentoAdicionalJaExisteException`)
+ganharam campo + getter pro mesmo dado que já recebiam no construtor
+(`numeroPedido`/`tipo`) — é o que `GlobalExceptionHandler` usa pra
+montar `parametros`. `TransicaoInvalidaException` já tinha os getters
+(`getEstadoAtual()`/`getEstadoSolicitado()`), só não usava um mapa.
 
 ## Endurecimento de validação de campos
 
@@ -689,9 +888,15 @@ endurecimento pôde ser aplicado direto, sem migração de dados.
 - **`quantidade` (`CriarPedidoRequest`) e `precoAcordado`
   (`CondicoesComerciaisRequest`): `@Positive`** — rejeita zero e
   negativos.
-- **`percentualParcial`: `@DecimalMin("0")` + `@DecimalMax("100")`**,
+- **`percentualParcial`: `@FaixaDecimal(min = 0, max = 100)`**,
   inclusive nas duas pontas (0 e 100 aceitos). Continua `@NotNull`
   (campo obrigatório, confirmado no código — não é opcional).
+  Originalmente era `@DecimalMin("0")` + `@DecimalMax("100")`;
+  substituído no Bloco 1 do i18n-infra (ver seção "Contrato de erro"
+  abaixo) porque as duas anotações disparam uma de cada vez — o
+  código granular `FORA_DA_FAIXA` precisa de `{min, max}` sempre
+  completos, e duas anotações separadas só entregam o limite que
+  falhou.
 - **`numeroContainer` (ISO 6346), campo opcional** — só existe depois
   da reserva do booking, continua podendo vir nulo/vazio tanto na
   criação (que nem tem esse campo) quanto no PATCH de logística.
@@ -856,6 +1061,174 @@ minúsculas/com hífen seria salvo e normalizado no backend, mas o
 campo continuaria mostrando o texto bruto digitado em vez do valor
 normalizado que a API de fato gravou.
 
+## Frontend multilíngue — i18n-infra Bloco 3
+
+Terceiro e último bloco da internacionalização (Bloco 1: contrato de
+erro granular por código; Bloco 2/2b: PDF multilíngue). Este bloco
+cobre o frontend inteiro — depois dele, **nenhum texto de interface
+fixo pode entrar no código**: todo texto visível ao usuário vem de
+uma chave de tradução (`t('...')`), exceto texto livre digitado pelo
+usuário (motivo, produto, consignee) e o nome do produto
+("TrackCargo"), que não traduz.
+
+### Biblioteca: `i18next` + `react-i18next` + `i18next-browser-languagedetector`
+
+Escolhida no Bloco 0 (trade-off já registrado ali): interpolação de
+parâmetros e fallback de locale prontos, sem reinventar — um
+dicionário caseiro exigiria escrever isso a mão pra pouco ganho real
+de dependência a menos. `i18next-browser-languagedetector` detecta o
+idioma do navegador (`navigator.language`) e persiste a escolha
+manual em `localStorage` (`detection: { order: ['localStorage',
+'navigator'], caches: ['localStorage'] }`) — o seletor manual
+(`<select>` no header, `App.tsx`) chama `i18n.changeLanguage(idioma)`,
+que já persiste sozinho, sem mecanismo próprio de storage.
+`nonExplicitSupportedLngs: true` faz `"pt-BR"`/`"en-US"` do navegador
+caírem em `"pt"`/`"en"` (só 3 idiomas suportados, sem variantes
+regionais). Recursos embutidos direto no bundle
+(`src/i18n/locales/{pt,en,es}.json`, sem backend HTTP) — inicialização
+síncrona, sem precisar de `Suspense`.
+
+### Estrutura de chaves (`src/i18n/locales/*.json`)
+
+Um arquivo por idioma, mesma árvore de chaves nos 3 (`campos.*`,
+`list.*`, `create.*`, `detail.*`, `enums.*`, `erros.*`, `idioma.*`,
+`app.*`) — `PdfStatusMessagesParityTest`-like no front:
+`paridadeDeChaves.test.ts` achata os 3 JSONs em chaves com ponto e
+compara os 3 conjuntos, travando qualquer chave esquecida num idioma.
+`campos.*` é compartilhado entre o rótulo do formulário de criação
+(`Campo label={t('campos.numeroPedido')}`) e a tradução de erro de
+validação (mesmo campo, mesmo rótulo — sem duplicar a lista de nomes
+de campo em dois lugares).
+
+### Rótulos de enum (32 valores: `PedidoEstado`, `TipoDocumento`,
+`Incoterm`, `FormaPagamento`, `Moeda`)
+
+Chave direta por valor (`enums.pedidoEstado.CRIADO`,
+`enums.tipoDocumento.INVOICE` etc.), chamada inline nos 4 componentes
+via `t()` — sem módulo/tabela de mapeamento própria, o valor do enum
+já É a chave de tradução. `Incoterm` e `Moeda` mantêm o mesmo texto
+nos 3 idiomas de propósito (códigos internacionais padronizados do
+comércio exterior, não português/inglês/espanhol).
+
+### Tradução de erros pelo código (`src/i18n/erros.ts`)
+
+`traduzirErro(t, apiError)` — nunca exibe `ErrorResponse.mensagem`
+(texto de depuração em PT do backend, ver Bloco 1) na UI, só traduz
+por `erro`/`campos[].codigo` + `parametros`:
+
+- **`campos` (validação) preenchido:** cada `CampoErro` vira uma
+  entrada em `porCampo[campo completo]` (ex.:
+  `"condicoesComerciais.percentualParcial"`) — a UI usa essa chave
+  completa pra achar o campo do formulário certo (`erros.porCampo['condicoesComerciais.percentualParcial']`
+  em `CriarPedido.tsx`). O rótulo interpolado na mensagem
+  (`{{campo}}`) usa só o último segmento do caminho
+  (`rotuloCampo()`), traduzido via `campos.*` — "Percentual parcial
+  deve estar entre 0 e 100", não "condicoesComerciais.percentualParcial
+  deve estar...". `campo === null` (JSON malformado sem campo
+  identificável, caso defensivo do backend) cai no banner
+  (`mensagemGeral`) em vez de `porCampo`.
+- **`erro` é um código de domínio conhecido** (`PEDIDO_NAO_ENCONTRADO`,
+  `TRANSICAO_INVALIDA` etc.) **e `campos` é `null`:** vira
+  `mensagemGeral`, exibida no banner — não há um "campo do formulário"
+  óbvio pra a maioria desses (pedido inteiro, documento, transição de
+  estado).
+- **Parâmetros que são enum do backend** (`tipo` → `TipoDocumento`,
+  `estadoAtual`/`estadoSolicitado` → `PedidoEstado`) são traduzidos
+  antes de interpolar (`CHAVE_ENUM_POR_PARAMETRO`) — a mensagem de
+  `TRANSICAO_INVALIDA` mostra "CRIADO"/"Criado" traduzido, não o
+  código cru. Parâmetros que são lista (`valoresAceitos`) viram string
+  separada por vírgula antes de interpolar — i18next não formata
+  array sozinho.
+- **Código desconhecido** (nem em `campos[].codigo` nem na lista de
+  códigos de domínio conhecidos): `erros.generico`, uma mensagem
+  genérica traduzida — nunca o texto cru do backend.
+- **`parametros` e `campos` são tratados como opcionais** (podem vir
+  `null` cada um, nunca os dois preenchidos — contrato do Bloco 1) —
+  `traduzirErro` checa presença antes de usar qualquer um dos dois,
+  sem assumir que um vem sempre preenchido.
+
+### Erro de campo perto do campo, resto no banner
+
+`CriarPedido.tsx`: `Campo` ganhou prop opcional `erro?: string`,
+renderizada como texto vermelho abaixo do input/select — cada
+`<Campo>` do formulário passa `erros.porCampo['<caminho>']` (caminho
+completo, igual ao `campo` do backend). `erros.mensagemGeral` (se
+houver) aparece no banner abaixo do formulário, igual antes.
+`DetalhePedido.tsx`: mesmo padrão pro `FormularioLogistica`
+(`ciaMaritima`/`numeroContainer`) e pros diálogos de motivo
+(`BotaoReabrir`/`BotaoRecusar`, campo `"motivo"`) — erro de domínio
+(a maioria das ações desta tela) continua só no banner.
+
+### Datas, números e moeda via `Intl` (`src/i18n/intl.ts`)
+
+Substituem os 2 `toLocaleString('pt-BR')` hardcoded (`ListaPedidos.tsx`,
+histórico em `DetalhePedido.tsx`) e a concatenação sem formatação
+`${precoAcordado} ${moeda}`:
+- `formatarData(iso, idioma)` → `Intl.DateTimeFormat(idioma, {dateStyle:
+  'short', timeStyle: 'short'})`.
+- `formatarNumero(valor, idioma)` → `Intl.NumberFormat(idioma)`
+  (quantidade, percentual parcial).
+- `formatarMoeda(valor, moeda, idioma)` → `Intl.NumberFormat(idioma,
+  {style: 'currency', currency: moeda})` — usa o código ISO da
+  `Moeda` do pedido (`USD`/`EUR`/`BRL`) como moeda de exibição,
+  formatada no padrão do idioma ativo (ex.: `US$ 85.000,00` em pt,
+  `$85,000.00` em en, `85.000,00 US$` em es — símbolo/posição/separador
+  decidido pelo próprio `Intl`, não hardcoded).
+
+### PDF: idioma ativo vai no link
+
+`urlStatusPdf(numeroPedido, idioma)` (antes só recebia `numeroPedido`)
+monta `?lang=<idioma ativo>` — o botão "Gerar PDF de status" em
+`DetalhePedido.tsx` passa `i18n.language`, então o PDF baixado já sai
+no mesmo idioma da tela.
+
+### `frontend/src/api/types.ts` — `ErrorResponse` atualizado
+
+`estadoAtual`/`estadoSolicitado` saíram do topo (shape antigo, nunca
+usado por nenhum componente — confirmado por grep antes do Bloco 1
+no backend). Shape novo, espelhando o contrato real:
+```ts
+export interface CampoErro {
+  campo: string | null
+  codigo: string
+  parametros: Record<string, unknown>
+}
+export interface ErrorResponse {
+  erro: string
+  mensagem: string
+  parametros: Record<string, unknown> | null
+  campos: CampoErro[] | null
+}
+```
+
+### Testes novos
+
+- `paridadeDeChaves.test.ts`: achata e compara as chaves dos 3 JSONs
+  (ver acima).
+- `erros.render.test.tsx`: dois testes de **renderização real**
+  (`@testing-library/react` + `jsdom`, dependências novas só de
+  teste — o projeto não tinha ambiente DOM configurado pro Vitest
+  ainda, `vite.config.ts` ganhou `test: { environment: 'jsdom',
+  setupFiles: [...] }`), usando os **JSONs reais** capturados da API
+  rodando nos Blocos 1/2 (colados no `docs/STATUS.md` do backend, não
+  reinventados): um erro de validação com dois campos inválidos
+  (`FORA_DA_FAIXA` + `POSITIVO`) renderizado em `CriarPedido`,
+  confirmando a mensagem traduzida perto de cada campo e que o texto
+  cru de `mensagem` nunca aparece; um `TRANSICAO_INVALIDA` real
+  renderizado em `DetalhePedido`, confirmando o banner traduzido com
+  os estados convertidos de código pra rótulo legível.
+
+### Achado durante a implementação: jsdom detecta idioma diferente do padrão da aplicação
+
+`i18next-browser-languagedetector` lê `navigator.language`, que no
+jsdom do ambiente de teste é `"en-US"` — sem `localStorage` prévio,
+o idioma detectado nos testes é `"en"`, não o `"pt"` padrão da
+aplicação. Os testes de renderização forçam `i18n.changeLanguage('pt')`
+num `beforeEach` antes de cada asserção em português — comportamento
+de ambiente de teste, não um bug da detecção (em um navegador real
+isso reflete o idioma de fato configurado no SO/browser do usuário,
+que é o comportamento desejado).
+
 ## Tabela de correlação — critério de aceitação × teste
 
 | Critério (do PRD) | Tipo de teste | O que valida |
@@ -905,9 +1278,16 @@ normalizado que a API de fato gravou.
 | Número de pedido com barra (`NNNNN/AAAA`) navega corretamente (link da lista, redirect pós-criação, chamada de API) | Frontend (Vitest) + manual (`curl`) | `navegacaoNumeroPedido.test.ts` (encode/decode de um único segmento de rota) — confirmado manualmente com `curl` que `GET /pedidos/00001%2F2026` (e `/historico`) retorna 200 após o `WebConfig`/Tomcat `encodedSolidusHandling=passthrough` |
 | ISO 6346 aceita número válido conhecido (dois exemplos distintos); rejeita dígito verificador errado, letras a menos, dígitos a menos e texto fora do formato (`"Plastico"`); `normalizar()` aceita minúsculas/espaço/hífen e devolve maiúsculas sem separador; `normalizar()`/`valido()` tratam nulo/vazio como opcional | Unitário (puro, sem Spring) | `Iso6346Test` (8 testes: `aceitaNumeroValidoConhecido`, `rejeitaDigitoVerificadorErrado`, `rejeitaComLetrasAMenos`, `rejeitaComDigitosAMenos`, `normalizarAceitaMinusculasEspacosEHifen`, `normalizarComNuloOuVazioDevolveNulo`, `validoComNuloDevolveFalso`, `rejeitaTextoQueNaoSegueOFormato`) |
 | `numeroContainer` inválido no PATCH de logística retorna 400 sem chegar ao service; valor normalizado (minúsculas/espaço/hífen) passa na validação; service persiste o valor normalizado, não o bruto | Unitário + API | `PedidoServiceTest.atualizarDadosLogisticosGravaONumeroContainerNormalizado` + `PedidoControllerTest.atualizarLogisticaComNumeroContainerFormatoInvalidoRetorna400` + `atualizarLogisticaComDigitoVerificadorErradoRetorna400` + `atualizarLogisticaComNumeroContainerMinusculoEspacadoEComHifenPassaNaValidacao` |
-| `moeda` fora do enum (`"Yen"`) e outro enum já existente com valor inválido (`incoterm`) retornam 400 com mensagem por campo gerada a partir de `Enum.values()`; JSON malformado sem campo identificável retorna mensagem genérica, sem expor texto interno do Jackson | API | `PedidoControllerTest.moedaInvalidaNoBodyRetorna400ComMensagemPorCampo` + `incotermInvalidoNoBodyRetorna400ComMensagemPorCampo` + `jsonMalformadoRetorna400ComMensagemGenerica` |
+| `moeda` fora do enum (`"Yen"`) e outro enum já existente com valor inválido (`incoterm`) retornam 400 com código `VALOR_ENUM_INVALIDO` e `valoresAceitos` gerado a partir de `Enum.values()`; JSON malformado sem campo identificável retorna `erro: JSON_MALFORMADO`, sem expor texto interno do Jackson | API | `PedidoControllerTest.criarComMoedaInvalidaRetorna400ComCodigoGranularListandoOEnum` + `criarComIncotermInvalidoRetorna400ComCodigoGranularListandoOEnum` + `criarComJsonMalformadoRetorna400ComCodigoProprioSemTextoInternoDoJackson` |
+| Cada anotação de validação usada nos DTOs tem código granular mapeado em um lugar só (`ValidacaoCodigoMapper`); `@Size` sem `message=` sai como `TAMANHO_MAXIMO` com `max` correto; `@Positive` como `POSITIVO`; `@FaixaDecimal` como `FORA_DA_FAIXA` com `{min, max}` sempre completos (0/100 aceitos, -0.01/100.01 rejeitados); anotação sem entrada no mapa nunca passa despercebida | Unitário + API | `ValidacaoCodigoMapperTest.todaAnotacaoDeValidacaoUsadaNosDtosTemEntradaNoMapeador` + `PedidoControllerTest.criarComNumeroPedidoAcimaDoTamanhoMaximoRetorna400` + `criarComQuantidadeZeroRetorna400`/`criarComQuantidadeNegativaRetorna400` + `criarComPercentualParcialNegativoRetorna400`/`criarComPercentualParcialAcimaDeCemRetorna400` + `ChecklistControllerTest.recusarComMotivoMaiorQue500CaracteresRetorna400` |
+| Exceções de domínio (`PEDIDO_NAO_ENCONTRADO`, `CHECKLIST_DOCUMENTO_NAO_ENCONTRADO`, `DOCUMENTO_JA_ACEITO`, `DOCUMENTO_NAO_ENVIADO`, `DOCUMENTO_NAO_ACEITO`, `DOCUMENTO_ADICIONAL_JA_EXISTE`, `TRANSICAO_INVALIDA`) devolvem `parametros` com os dados da exceção; `PARAMETRO_INVALIDO` (path variable inválida) devolve `{parametro, valor}` | API + Unitário | `PedidoControllerTest.buscarPorNumeroInexistenteRetorna404` + `transicionarComEstadoInvalidoRetorna409` + `ChecklistControllerTest.enviarDocumentoJaAceitoRetorna409` + `enviarDocumentoInexistenteRetorna404` + `aceitarDocumentoNaoEnviadoRetorna409` + `reabrirDocumentoNaoAceitoRetorna409` + `recusarDocumentoNaoEnviadoRetorna409` + `recusarDocumentoJaAceitoRetorna409` + `tipoDocumentoInvalidoNaRotaRetorna400` + `GlobalExceptionHandlerTest.tratarDocumentoAdicionalJaExistePreencheParametrosComNumeroPedido` (sem endpoint REST próprio, testado direto no handler) |
 | `quantidade`/`precoAcordado` rejeitam zero e negativos; `percentualParcial` aceita 0 e 100, rejeita -1 e 101 | API | `PedidoControllerTest` — testes de `@Positive` em quantidade/precoAcordado e de faixa em percentualParcial (ver classe pra nomes completos, um teste por caso de fronteira) |
 | Fluxo real: criar pedido válido, depois tentar moeda/quantidade/percentualParcial/numeroContainer inválidos, cada um retornando 400 `VALIDACAO_INVALIDA` na API real | E2E | `FluxoPedidoE2ETest.criarPedidoValidoDepoisValoresInvalidosRetorna400NaAPIReal` |
+| PDF de status gerado nos 3 idiomas (pt/en/es) com rótulos, título, cabeçalhos de tabela e status calculado traduzidos; os 9 estados de `PedidoEstado` têm rótulo legível (não mais `name()` cru); idioma desconhecido cai no padrão `pt` sem lançar exceção; selo de pedido cancelado traduzido; data fixa formatada com padrão explícito por idioma (`dd/MM/yyyy HH:mm` pt/es, `dd MMM yyyy HH:mm` en), sem depender do locale da JVM | Unitário (PDF real) | `PdfStatusServiceTest.geraPdfNosTresIdiomasComRotulosTraduzidos` + `idiomaDesconhecidoCaiNoPadraoPt` + `seloDePedidoCanceladoSaiTraduzidoNosTresIdiomas` + `dataFixaFormatadaComPadraoExplicitoPorIdiomaSemDependerDoLocaleDaJvm` |
+| As chaves dos 3 arquivos de mensagens do PDF (`pdf-status-messages_{pt,en,es}.properties`) são idênticas — nenhuma chave esquecida num idioma | Unitário | `PdfStatusMessagesParityTest.asTresChavesDeMensagensSaoIdenticasEmPtEnEEs` |
+| `GET /pedidos/{numero}/status.pdf?lang=` repassa o idioma pro service (default `pt` quando omitido) | API | `PedidoControllerTest.gerarPdfStatusRetorna200ComContentTypePdf` (default) + `gerarPdfStatusComLangRepassaIdiomaParaOService` |
+| As chaves dos 3 arquivos de tradução do frontend (`src/i18n/locales/{pt,en,es}.json`) são idênticas — nenhuma chave esquecida num idioma | Frontend (Vitest) | `paridadeDeChaves.test.ts` |
+| Erro de validação real (dois campos inválidos) renderizado em `CriarPedido` mostra a mensagem traduzida perto de cada campo, nunca o texto cru de `mensagem`; erro de domínio real (`TRANSICAO_INVALIDA`) renderizado em `DetalhePedido` mostra o banner traduzido com os estados convertidos pra rótulo legível | Frontend (Vitest + Testing Library, JSON real da API) | `erros.render.test.tsx` (2 testes) |
 
 ## Fora de escopo desta Spec
 
