@@ -76,7 +76,7 @@ export default function DetalhePedido() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold">Pedido {pedido.numeroPedido}</h1>
+        <h1 className="text-2xl font-semibold">{t('detail.titulo', { numeroPedido: pedido.numeroPedido })}</h1>
         <span className="mt-1 inline-block rounded-full bg-stone-100 px-2 py-1 text-xs font-medium text-stone-700">
           {t(`enums.pedidoEstado.${pedido.estado}`)}
         </span>

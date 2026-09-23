@@ -55,6 +55,7 @@
     "erroGenerico": "Error al crear el pedido."
   },
   "detail": {
+    "titulo": "Pedido {{numeroPedido}}",
     "carregando": "Cargando...",
     "erroCarregar": "Error al cargar el pedido.",
     "erroAcao": "La acción falló.",

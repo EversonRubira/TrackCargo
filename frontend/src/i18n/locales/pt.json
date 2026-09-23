@@ -55,6 +55,7 @@
     "erroGenerico": "Falha ao criar pedido."
   },
   "detail": {
+    "titulo": "Pedido {{numeroPedido}}",
     "carregando": "Carregando...",
     "erroCarregar": "Falha ao carregar pedido.",
     "erroAcao": "Ação falhou.",
