@@ -55,6 +55,7 @@
     "erroGenerico": "Failed to create order."
   },
   "detail": {
+    "titulo": "Order {{numeroPedido}}",
     "carregando": "Loading...",
     "erroCarregar": "Failed to load order.",
     "erroAcao": "Action failed.",
