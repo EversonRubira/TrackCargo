@@ -1287,3 +1287,38 @@ ainda.
   e clientes)
 - Integração de câmbio/moeda
 - Notificações automáticas ao cliente por etapa
+
+## Ideias futuras — condicionadas a validação com usuário real (24/set/2026)
+Vieram de uma comparação com o Fujitsu MeatPro (ERP industrial pesado,
+sobre Dynamics 365 BC, voltado a frigoríficos de grande porte — não é
+referência direta de escopo, só de conceitos). Nenhuma delas é feature
+ativa nem entra no backlog v2 acima: princípio Hashimoto (sem
+abstração sem fricção real) — nenhuma tem fricção observada hoje,
+porque não há usuário real em produção ainda. Só promover pra spec
+quando essa fricção aparecer.
+
+- **Eligibility Control** (checklist por mercado de destino): ao
+  selecionar o país de destino, sugerir/alertar quais documentos são
+  obrigatórios ou incompatíveis (ex.: certificado sanitário específico
+  por mercado). Custo médio — exige tabela país→documentos exigidos,
+  mantida manualmente (sem fonte de dados automática hoje).
+- **Quota Management** (saldo de cota por mercado/ano): contador
+  simples (cota total, já embarcado, saldo). Custo baixo, mas só faz
+  sentido com um exportador real que tenha cota tarifária a controlar.
+- **Integração com sistemas de documentação** (Siscomex, Prodocs e
+  equivalentes): não emitir documento, só alimentar/consultar status
+  via API desses sistemas. Custo alto (autenticação e formato de órgão
+  externo) — só vale com cliente pagante testando.
+- **Lot Traceability** (rastreabilidade de lote/fazenda de origem):
+  foge do domínio atual (TrackCargo modela o *pedido* de exportação,
+  não a cadeia produtiva). Custo alto, muda o modelo de dados. Só
+  entra se o público-alvo virar frigorífico com exigência específica
+  de mercado (UE, China).
+- **Net Realisable Value** (margem estimada por pedido): calcular
+  valor líquido combinando câmbio, frete e seguro sobre o pagamento
+  parcial/saldo já existente. Custo médio, mas sem fonte confiável de
+  câmbio/frete real vira número decorativo — só vale com integração de
+  dado real.
+
+Sinal de quando promover qualquer um desses: usuário real pedindo, não
+comparação com concorrente.
