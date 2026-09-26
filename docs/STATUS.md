@@ -135,6 +135,10 @@ JSON real (`erros.render.test.tsx`) + `tsc`/`build` limpos — a
 confirmação visual final (seletor de idioma no header, layout dos
 erros por campo, formatação de moeda) fica por conta do usuário.
 
+**Atualização 26/09/2026:** validação visual do i18n-infra concluída
+com sucesso — seletor de idioma pt/en/es, erros traduzidos e telas
+conferidos manualmente no navegador (validação real, sem Playwright).
+
 ## Estado de saída (i18n-infra completo — Blocos 0, 1, 2, 2b, Passo 1, 3)
 Fechado: contrato de erro granular por código (backend), PDF
 multilíngue com padrão de data explícito (backend), tradução em
@@ -1287,6 +1291,25 @@ ainda.
   e clientes)
 - Integração de câmbio/moeda
 - Notificações automáticas ao cliente por etapa
+
+## Migration de proteção — enum Moeda sem tratamento de dado legado (confirmado 26/09/2026)
+
+O PR #24 endureceu Pedido.moeda para @Enumerated(EnumType.STRING) Moeda
+(USD/EUR/BRL) sem migration de dados, decisão consciente assumindo "só há
+dados de teste locais". Um pedido criado antes do PR (moeda='Yen', dado de
+teste que motivou a própria validação) ficou no banco e derrubou a
+listagem inteira com 500 ao ser lido pelo Hibernate, porque o enum não
+aceita valores fora de USD/EUR/BRL.
+
+Risco real: qualquer ambiente que suba com dado legado fora do enum
+quebra a listagem sem aviso claro (só stack trace no log do backend,
+frontend mostra "Ocorreu um erro. Tente novamente." genérico).
+
+Ação futura: migration V6 (Flyway) que normalize ou rejeite valores fora
+do enum na subida da aplicação, em vez de deixar o Hibernate falhar em
+runtime na leitura. Avaliar também se vale um tratamento de erro mais
+específico no backend/frontend para esse tipo de falha de integridade
+(hoje cai no genérico igual qualquer outro 500).
 
 ## Ideias futuras — condicionadas a validação com usuário real (24/set/2026)
 Vieram de uma comparação com o Fujitsu MeatPro (ERP industrial pesado,
