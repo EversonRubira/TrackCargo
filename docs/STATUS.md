@@ -1345,3 +1345,31 @@ quando essa fricção aparecer.
 
 Sinal de quando promover qualquer um desses: usuário real pedindo, não
 comparação com concorrente.
+
+## Mudança de rumo: Pontis (16/out/2026)
+
+O produto, até aqui chamado TrackCargo, passa a se chamar **Pontis**:
+espaço partilhado entre exportador e importador numa mesma operação
+de exportação (empresas, convite por link, aceite/recusa só pelo
+importador, comentários, notificações, encerramento com autorização
+dupla). Contradiz diretamente o PRD atual (`docs/PRD.md`, seções 4 e
+9: sem multiusuário, cliente não é usuário) — o PRD precisa ser
+reaberto antes de qualquer implementação, ainda não foi.
+
+Nesta sessão (branch `docs/pontis-mapa`), só papel, nenhum código
+alterado: `docs/PONTIS-MAPA.md` mapeia o estado atual (entidades,
+endpoints, regras, com citação de arquivo), o que muda, o que é
+novo, uma ordem de construção em passos pequenos, riscos/
+inconsistências e as decisões que faltam tomar (autenticação,
+reabertura de documento aceito pelo importador, numeração por
+empresa, granularidade de privacidade, canal de notificação). Inclui
+também o inventário de renomeação TrackCargo → Pontis, separado em
+texto visível ao usuário (renomear primeiro) e identificadores
+técnicos (pacote Java, artifactId, banco/usuário Postgres, container
+Docker, nome do repositório GitHub — recomendação de manter por
+agora, para não quebrar migração/CI/volumes).
+
+**Próximo passo real:** aguardar a revisão do `docs/PONTIS-MAPA.md`
+pelo usuário — as decisões da seção "f" do mapa (principalmente
+autenticação e o PRD reaberto) condicionam qualquer implementação.
+Não iniciar código nenhum sem essa revisão.
