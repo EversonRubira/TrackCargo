@@ -1491,10 +1491,61 @@ sessão fez só o A.
 **Próximo passo real:** revisão do bloco A pelo utilizador. Não iniciar
 o bloco B sem essa revisão.
 
+## Degrau 1, bloco B: o pedido ganha dono (16/out/2026, sessão 4)
+
+Branch `feature/pedido-dono-empresa`. Nome sem alteração (TrackCargo).
+
+**Feito:**
+- Migração `V7__pedido_empresa_exportadora.sql` (era o próximo número
+  livre): insere a empresa padrão com `id`
+  `00000000-0000-0000-0000-000000000001`, acrescenta
+  `pedido.empresa_exportadora_id` sem `NOT NULL`, preenche as linhas
+  existentes, e só depois `NOT NULL`, chave estrangeira
+  `fk_pedido_empresa_exportadora` e índice
+  `ix_pedido_empresa_exportadora_id`. Sem utilizador nem senha.
+- `Empresa.ID_PADRAO`: único sítio do Java com esse `id`.
+- `Pedido.empresaExportadoraId` (UUID, sem `@ManyToOne`): só pelo
+  `Builder`, obrigatório no `build()`, `updatable = false`, sem setter.
+- `CriarPedidoRequest.paraPedido(UUID empresaExportadoraId)`: a dona vem
+  de fora, nunca do JSON. `PedidoController.criar` passa
+  `Empresa.ID_PADRAO`, com `TODO bloco C`.
+- Endpoints, DTOs de resposta e mensagens de erro sem alteração (o teste
+  novo do controller confirma que a resposta não expõe a dona).
+- `docs/MIGRACAO-EMPRESA-PADRAO.md`: passo manual para mover os pedidos
+  da empresa padrão para uma empresa real (registo + `UPDATE` numa
+  transação). Corrido contra a base do `docker compose`.
+- Testes novos: `PedidoTest` (Builder recusa pedido sem dona),
+  `EmpresaRepositoryTest` (Postgres real: a V7 criou a empresa com o id
+  da constante), `MigracaoV7Test` (schema separado migrado até V6, com
+  pedidos, depois V7: contagem igual e todos com a empresa padrão, coluna
+  `NOT NULL`, FK recusa dona inexistente), e
+  `PedidoControllerTest.criarAtribuiEmpresaPadraoComoDonaSemExporNaResposta`.
+- Testes antigos alterados: só uma linha `.empresaExportadoraId(...)` no
+  `Pedido.builder()` de `PedidoControllerTest`, `PedidoServiceTest`,
+  `ChecklistServiceTest`, `PdfStatusServiceTest`, `PedidoRepositoryTest`,
+  `PedidoOcorrenciaRepositoryTest` (não compilavam sem dona). Suíte: 156
+  testes, todos verdes.
+
+**Pendente, para o bloco C:**
+- A dona dos pedidos novos passa a ser a empresa do utilizador
+  autenticado (`TODO bloco C` em `PedidoController.criar`).
+- Filtrar por empresa com 404, proteger endpoints, CSRF, testes de
+  controller com login, frontend (lista do bloco A acima continua
+  válida).
+- Correr `docs/MIGRACAO-EMPRESA-PADRAO.md` na base real depois do C (até
+  lá os pedidos novos continuam a cair na empresa padrão).
+
+**Em aberto, fora deste degrau:** numeração `NNNNN/AAAA` continua global,
+não separada por empresa.
+
+**Próximo passo real:** revisão do bloco B pelo utilizador. Não iniciar
+o bloco C sem essa revisão.
+
 ## Correção: barra codificada no número do pedido (17/out/2026, sessão 5)
 
-Branch `fix/barra-codificada-numero-pedido`, a partir da `main` (sem o
-bloco B, que está no PR #33, ainda por rever).
+Branch `fix/barra-codificada-numero-pedido`. Partiu da `main` antes do
+bloco B; o bloco B (PR #33) foi mergeado entretanto e trazido para esta
+branch com um merge da `main`.
 
 **Sintoma:** depois do PR #32, `GET /pedidos/01001%2F2026` (e qualquer
 rota com `{numeroPedido}` que tenha barra) dava 400 com o corpo de erro
@@ -1515,14 +1566,12 @@ dava 200.
   em porta aleatória): detalhe, rota aninhada do checklist e PDF. Falha
   na `main`, passa com a correção.
 - `docs/SPEC.md`: nota de que a barra passa por duas camadas.
-- Nenhum teste existente alterado. Suíte: 155 testes, todos verdes.
+- Nenhum teste existente alterado. Suíte: 159 testes, todos verdes
+  (156 do bloco B + 3 novos).
 
 **Adiado (decisão maior, fora desta correção):** mudar as rotas para não
 levarem o número com barra (por exemplo, usar o `id` ou um número sem
 barra na URL).
 
-**Atenção ao juntar com o PR #33:** os dois mexem no topo e no fim deste
-arquivo. O conflito é só de texto: ficam as duas secções.
-
-**Próximo passo real:** revisão desta correção e do bloco B (PR #33) pelo
-utilizador. Não iniciar o bloco C sem essa revisão.
+**Próximo passo real:** revisão desta correção pelo utilizador. Não
+iniciar o bloco C sem essa revisão.

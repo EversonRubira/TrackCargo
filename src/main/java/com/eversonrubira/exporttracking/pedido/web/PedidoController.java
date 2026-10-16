@@ -1,5 +1,6 @@
 package com.eversonrubira.exporttracking.pedido.web;
 
+import com.eversonrubira.exporttracking.conta.Empresa;
 import com.eversonrubira.exporttracking.pedido.ChecklistDocumento;
 import com.eversonrubira.exporttracking.pedido.ChecklistService;
 import com.eversonrubira.exporttracking.pedido.Pedido;
@@ -53,7 +54,10 @@ public class PedidoController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public PedidoResponse criar(@Valid @RequestBody CriarPedidoRequest request) {
-        Pedido pedido = pedidoService.criar(request.paraPedido());
+        // TODO bloco C: a dona passa a ser a empresa do utilizador
+        // autenticado. Ate la os endpoints estao abertos (pode nao haver
+        // sessao), por isso todo pedido novo fica com a empresa padrao.
+        Pedido pedido = pedidoService.criar(request.paraPedido(Empresa.ID_PADRAO));
         return responder(pedido);
     }
 

@@ -27,6 +27,14 @@ public class Pedido {
     @Column(name = "numero_pedido", nullable = false, unique = true, length = 50)
     private String numeroPedido;
 
+    // Empresa dona do pedido (degrau 1). So o id, sem @ManyToOne: nada
+    // no pedido precisa dos dados da empresa, e assim o pacote pedido
+    // nao depende da entidade Empresa. A chave estrangeira garante na
+    // base que o id existe. updatable = false: a dona nao muda depois
+    // de criado.
+    @Column(name = "empresa_exportadora_id", nullable = false, updatable = false)
+    private UUID empresaExportadoraId;
+
     @Column(nullable = false, length = 200)
     private String cliente;
 
@@ -99,6 +107,7 @@ public class Pedido {
 
     private Pedido(Builder b) {
         this.numeroPedido = Objects.requireNonNull(b.numeroPedido, "numeroPedido e obrigatorio");
+        this.empresaExportadoraId = Objects.requireNonNull(b.empresaExportadoraId, "empresaExportadoraId e obrigatorio");
         this.cliente = Objects.requireNonNull(b.cliente, "cliente e obrigatorio");
         this.consignee = Objects.requireNonNull(b.consignee, "consignee e obrigatorio");
         this.paisDestino = Objects.requireNonNull(b.paisDestino, "paisDestino e obrigatorio");
@@ -121,6 +130,7 @@ public class Pedido {
 
     public static class Builder {
         private String numeroPedido;
+        private UUID empresaExportadoraId;
         private String cliente;
         private String consignee;
         private String paisDestino;
@@ -136,6 +146,7 @@ public class Pedido {
         private BigDecimal percentualParcial;
 
         public Builder numeroPedido(String v) { this.numeroPedido = v; return this; }
+        public Builder empresaExportadoraId(UUID v) { this.empresaExportadoraId = v; return this; }
         public Builder cliente(String v) { this.cliente = v; return this; }
         public Builder consignee(String v) { this.consignee = v; return this; }
         public Builder paisDestino(String v) { this.paisDestino = v; return this; }
@@ -202,6 +213,7 @@ public class Pedido {
 
     public UUID getId() { return id; }
     public String getNumeroPedido() { return numeroPedido; }
+    public UUID getEmpresaExportadoraId() { return empresaExportadoraId; }
     public String getCliente() { return cliente; }
     public String getConsignee() { return consignee; }
     public String getPaisDestino() { return paisDestino; }

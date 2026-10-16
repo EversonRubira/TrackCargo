@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 public record CriarPedidoRequest(
         @NotBlank(message = "numeroPedido e obrigatorio")
@@ -50,9 +51,12 @@ public record CriarPedidoRequest(
         @Valid
         CondicoesComerciaisRequest condicoesComerciais
 ) {
-    public Pedido paraPedido() {
+    // A dona vem de fora e nao do JSON: quem cria o pedido nunca escolhe
+    // a empresa (no bloco C passa a ser a do utilizador autenticado).
+    public Pedido paraPedido(UUID empresaExportadoraId) {
         return Pedido.builder()
                 .numeroPedido(numeroPedido)
+                .empresaExportadoraId(empresaExportadoraId)
                 .cliente(cliente)
                 .consignee(consignee)
                 .paisDestino(paisDestino)
