@@ -5,10 +5,17 @@ import org.springframework.boot.tomcat.servlet.TomcatServletWebServerFactory;
 import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+// @Import(SecurityConfig.class): o @WebMvcTest carrega este WebConfig
+// (e um WebMvcConfigurer) mas nao carrega classes @Configuration de
+// seguranca. Sem o import, esses testes usariam a seguranca padrao do
+// Spring Boot (tudo exige login, CSRF ligado) em vez da nossa, e os
+// testes de controller testariam regras diferentes das de producao.
 @Configuration
+@Import(SecurityConfig.class)
 public class WebConfig implements WebMvcConfigurer {
 
     @Override
@@ -16,7 +23,12 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addMapping("/**")
                 .allowedOriginPatterns("http://localhost:5173", "https://*.app.github.dev")
                 .allowedMethods("GET", "POST", "PATCH", "PUT", "DELETE")
-                .allowedHeaders("*");
+                .allowedHeaders("*")
+                // Deixa o navegador enviar o cookie de sessao entre
+                // origens diferentes (frontend :5173, backend :8080). So
+                // e permitido com origens especificas, nunca com "*": por
+                // isso funciona com os allowedOriginPatterns acima.
+                .allowCredentials(true);
     }
 
     // numero_pedido pode conter "/" (padrao NNNNN/AAAA da numeracao

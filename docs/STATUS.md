@@ -1,9 +1,9 @@
 # Status — TrackCargo
 
 ## Última atualização
-22/set/2026 — i18n-infra concluído (Passo 1 + Bloco 3, frontend),
-branch `feature/i18n-infra` (requisito irrevogável: pt-BR/en/es).
-PR ainda não aberto — aguardando confirmação final do usuário.
+16/out/2026 — degrau 1, bloco A (empresa, utilizador e autenticação),
+branch `feature/auth-empresa-usuario`. Ponto de retomada no fim deste
+arquivo, secção "Degrau 1, bloco A".
 
 ## Regra de projeto a partir de agora
 **Nenhum texto de interface fixo no código.** Todo texto visível ao
@@ -1417,3 +1417,75 @@ alterado, dois commits separados:
 e a spec do degrau 1. Principal ponto a confirmar: a escolha de
 sessão em vez de JWT, e a fusão dos degraus 1+2 do mapa original.
 Não iniciar código nenhum sem essa revisão.
+
+## Degrau 1, bloco A: empresa, utilizador e autenticação (16/out/2026, sessão 3)
+
+Branch `feature/auth-empresa-usuario`. Nome sem alteração (TrackCargo).
+O degrau 1 da `docs/SPEC-degrau-1.md` foi dividido em três blocos; esta
+sessão fez só o A.
+
+**Feito:**
+- Dependências `spring-boot-starter-security` e
+  `spring-boot-starter-security-test` (nomes confirmados no Maven
+  Central para o Boot 4.1.1; trazem o Spring Security 7.1.1).
+- Migração `V6__empresa_usuario.sql`: tabelas `empresa` e `usuario`
+  (UUID, `criado_em`, `atualizado_em`), índice único sobre
+  `LOWER(email)`. Ficou com o número 6 porque era o próximo livre: a
+  "V6" de proteção da moeda (secção "Migration de proteção" acima)
+  nunca chegou a ser criada e passa a ser a próxima livre quando for
+  feita.
+- Pacote novo `conta`: `Empresa`, `Usuario`, repositórios,
+  `ContaService` (registo numa só transação), `UsuarioDetailsService`,
+  `AutenticacaoConfig` (`PasswordEncoder` delegating + 
+  `AuthenticationManager`), `web/AuthController` com
+  `POST /auth/registo`, `POST /auth/login`, `POST /auth/logout`,
+  `GET /auth/me`.
+- `config/SecurityConfig`: sessão (`HttpSession`), CSRF desligado e
+  endpoints de pedido abertos, ambos com `TODO bloco C`; só `/auth/me`
+  e `/auth/logout` exigem sessão. 401 no contrato `ErrorResponse`.
+  Importado pelo `WebConfig` para os `@WebMvcTest` antigos usarem as
+  mesmas regras da produção (sem isto, 55 testes antigos caíam com
+  401/403, medido).
+- `WebConfig`: `allowCredentials(true)` no CORS (compatível com
+  `allowedOriginPatterns`; confirmado com preflight real).
+- Códigos de erro novos: `EMAIL_JA_REGISTADO` (409), `SENHA_CURTA`
+  (400, `minimo`), `SENHA_LONGA` (400, `maximoBytes`, limite de 72
+  bytes do BCrypt), `CREDENCIAIS_INVALIDAS` (401, igual para email
+  inexistente e senha errada), `NAO_AUTENTICADO` (401).
+- Testes novos: `ContaServiceTest` (7), `UsuarioRepositoryTest` (2,
+  Postgres real), `AuthControllerTest` (12, HTTP real com cookie).
+  Nenhum teste antigo alterado. Suíte: 152 testes, todos verdes.
+
+**Pendente, fora deste bloco (anotado a pedido):**
+- Limite de tentativas de login (força bruta).
+- Recuperação de senha.
+- Verificação de email.
+- Persistência da sessão fora da memória (hoje reiniciar o backend
+  termina todas as sessões).
+
+**Pendente, para os blocos seguintes:**
+- Bloco B: `pedido.empresa_exportadora_id` (nunca `empresa_id`),
+  empresa padrão para os pedidos existentes, migração dos dados.
+- Bloco C: exigir sessão em todos os endpoints de pedido, ligar o CSRF,
+  ajustar os testes antigos (`PedidoControllerTest`,
+  `ChecklistControllerTest`, `FluxoPedidoE2ETest`), telas de login e
+  registo, `credentials: 'include'` no `client.ts`, traduções pt/en/es
+  dos cinco códigos de erro novos em `frontend/src/i18n` (incluindo
+  `CODIGOS_GERAIS` em `erros.ts`), e acrescentar `RegistoRequest` e
+  `LoginRequest` à lista do `ValidacaoCodigoMapperTest` (hoje só usam
+  `@NotBlank`/`@Size`, já mapeados, mas a lista do teste é explícita).
+
+**Observações para revisão:**
+- O Spring Security acrescenta cabeçalhos a todas as respostas
+  (`Cache-Control: no-cache, no-store`, `X-Frame-Options: DENY`,
+  `X-Content-Type-Options: nosniff`), incluindo os endpoints antigos.
+  O frontend não usa `iframe`, por isso o PDF não é afetado.
+- `EMAIL_JA_REGISTADO` revela que um email tem conta (enumeração pelo
+  registo). Pedido explicitamente; o login não revela nada.
+- Corrida entre dois registos simultâneos com o mesmo email: a
+  verificação `existsByEmail` deixa passar ambos, o índice único da
+  base recusa o segundo, que hoje sai como 500 em vez de 409. Raro,
+  sem tratamento por agora.
+
+**Próximo passo real:** revisão do bloco A pelo utilizador. Não iniciar
+o bloco B sem essa revisão.
