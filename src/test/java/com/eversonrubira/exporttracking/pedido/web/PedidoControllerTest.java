@@ -1,5 +1,6 @@
 package com.eversonrubira.exporttracking.pedido.web;
 
+import com.eversonrubira.exporttracking.conta.Empresa;
 import com.eversonrubira.exporttracking.pedido.ChecklistDocumento;
 import com.eversonrubira.exporttracking.pedido.ChecklistService;
 import com.eversonrubira.exporttracking.pedido.FormaPagamento;
@@ -20,6 +21,7 @@ import com.eversonrubira.exporttracking.pedido.web.dto.TransicionarRequest;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -30,6 +32,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -75,6 +78,7 @@ class PedidoControllerTest {
     void setUp() {
         pedido = Pedido.builder()
                 .numeroPedido("PO-0001")
+                .empresaExportadoraId(Empresa.ID_PADRAO)
                 .cliente("Cliente Teste")
                 .consignee("Consignee Teste")
                 .paisDestino("China")
@@ -150,6 +154,26 @@ class PedidoControllerTest {
                 .andExpect(jsonPath("$.numeroPedido").value("PO-0001"))
                 .andExpect(jsonPath("$.estado").value("CRIADO"))
                 .andExpect(jsonPath("$.checklist").isArray());
+    }
+
+    // Bloco B: sem login ainda, todo pedido novo fica com a empresa
+    // padrao. O captor apanha o Pedido que o controller entrega ao
+    // service (o service esta mockado). A resposta nao expoe a dona: o
+    // contrato da API nao muda neste bloco.
+    @Test
+    void criarAtribuiEmpresaPadraoComoDonaSemExporNaResposta() throws Exception {
+        when(pedidoService.criar(any(Pedido.class))).thenReturn(pedido);
+        when(pedidoService.buscarChecklist("PO-0001")).thenReturn(List.of());
+
+        mockMvc.perform(post("/pedidos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestValido())))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.empresaExportadoraId").doesNotExist());
+
+        ArgumentCaptor<Pedido> pedidoCaptor = ArgumentCaptor.forClass(Pedido.class);
+        verify(pedidoService).criar(pedidoCaptor.capture());
+        assertThat(pedidoCaptor.getValue().getEmpresaExportadoraId()).isEqualTo(Empresa.ID_PADRAO);
     }
 
     @Test
