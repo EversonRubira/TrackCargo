@@ -1,5 +1,8 @@
 package com.eversonrubira.exporttracking.pedido.web;
 
+import com.eversonrubira.exporttracking.conta.exception.EmailJaRegistadoException;
+import com.eversonrubira.exporttracking.conta.exception.SenhaCurtaException;
+import com.eversonrubira.exporttracking.conta.exception.SenhaLongaException;
 import com.eversonrubira.exporttracking.pedido.exception.ChecklistDocumentoNaoEncontradoException;
 import com.eversonrubira.exporttracking.pedido.exception.DocumentoAdicionalJaExisteException;
 import com.eversonrubira.exporttracking.pedido.exception.DocumentoJaAceitoException;
@@ -10,6 +13,7 @@ import com.eversonrubira.exporttracking.pedido.exception.TransicaoInvalidaExcept
 import com.eversonrubira.exporttracking.pedido.web.dto.ErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -71,6 +75,34 @@ public class GlobalExceptionHandler {
     public ErrorResponse tratarDocumentoAdicionalJaExiste(DocumentoAdicionalJaExisteException ex) {
         return ErrorResponse.deDominio("DOCUMENTO_ADICIONAL_JA_EXISTE", ex.getMessage(),
                 Map.of("numeroPedido", ex.getNumeroPedido()));
+    }
+
+    // Conta e autenticacao (degrau 1, bloco A).
+
+    @ExceptionHandler(EmailJaRegistadoException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorResponse tratarEmailJaRegistado(EmailJaRegistadoException ex) {
+        return ErrorResponse.de("EMAIL_JA_REGISTADO", ex.getMessage());
+    }
+
+    @ExceptionHandler(SenhaCurtaException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponse tratarSenhaCurta(SenhaCurtaException ex) {
+        return ErrorResponse.deDominio("SENHA_CURTA", ex.getMessage(), Map.of("minimo", ex.getMinimo()));
+    }
+
+    @ExceptionHandler(SenhaLongaException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponse tratarSenhaLonga(SenhaLongaException ex) {
+        return ErrorResponse.deDominio("SENHA_LONGA", ex.getMessage(), Map.of("maximoBytes", ex.getMaximoBytes()));
+    }
+
+    // Mesma resposta para email inexistente e senha errada: nem o codigo
+    // nem a mensagem dizem qual dos dois falhou.
+    @ExceptionHandler(BadCredentialsException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ErrorResponse tratarCredenciaisInvalidas(BadCredentialsException ex) {
+        return ErrorResponse.de("CREDENCIAIS_INVALIDAS", "Email ou senha invalidos");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
