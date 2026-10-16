@@ -1373,3 +1373,47 @@ agora, para não quebrar migração/CI/volumes).
 pelo usuário — as decisões da seção "f" do mapa (principalmente
 autenticação e o PRD reaberto) condicionam qualquer implementação.
 Não iniciar código nenhum sem essa revisão.
+
+## PRD reaberto e spec do degrau 1 (16/out/2026, sessão 2)
+
+Nome do produto sem alteração nenhuma: continua TrackCargo em todo o
+código e documentos. A troca para Pontis (nome provisório, usado só
+em planejamento) fica adiada até existir produto funcionando,
+conforme pedido explícito desta sessão.
+
+Nesta sessão (branch `docs/pontis-degrau-1`), só papel, nenhum código
+alterado, dois commits separados:
+
+1. `docs/PRD-v2.md`: reabre o PRD, mantendo `docs/PRD.md` intacto
+   como histórico. Marca, seção a seção, o que continua (F01 ciclo de
+   vida, F02 painel, F03 PDF), o que é reescrito (seções 4 e 9: de
+   "uso individual sem multiusuário" para "duas empresas, cada uma
+   com seus usuários") e o que é novo (F04: empresas, contas e
+   autenticação; F05: operação partilhada, detalhada no
+   `docs/PONTIS-MAPA.md`). Lista explicitamente as perguntas ainda
+   não decididas (link de leitura sem conta, retenção de arquivo,
+   lembretes, quem paga, e as já registradas no mapa) como fora de
+   escopo desta leva, sem resolvê-las.
+2. `docs/SPEC-degrau-1.md`: spec técnica do primeiro degrau da
+   ordem de construção (empresas e contas). Junta os degraus 1 e 2
+   do `docs/PONTIS-MAPA.md` num só, porque descrever a migração dos
+   dados já existentes (pedidos sem dono) exige já saber o destino
+   deles (a empresa dona), então não fazia sentido separar. Cobre:
+   autenticação por sessão (recomendada sobre JWT, trade-offs
+   explicados), tabelas novas `empresa`/`usuario`, migração V6 dos
+   pedidos existentes para uma empresa padrão (mesma técnica de
+   coluna com default temporário já usada em V2/V3), endpoints novos
+   (`/auth/registo`, `/auth/login`, `/auth/logout`, `/auth/me`) e
+   alterados (todo `PedidoController`/`ChecklistController` passa a
+   exigir sessão e verificar posse, 404 em vez de 403 pra não
+   revelar existência de pedido de outra empresa), quadro de
+   autorização, tabela de correlação critério×teste, e o impacto nos
+   testes atuais: `PedidoControllerTest`, `ChecklistControllerTest` e
+   `FluxoPedidoE2ETest` (mais de 60 métodos somados) quebram por
+   chamarem endpoints sem autenticar primeiro, correção mecânica
+   (acrescentar login no setup), não reescrita de lógica.
+
+**Próximo passo real:** aguardar a revisão do usuário sobre o PRD-v2
+e a spec do degrau 1. Principal ponto a confirmar: a escolha de
+sessão em vez de JWT, e a fusão dos degraus 1+2 do mapa original.
+Não iniciar código nenhum sem essa revisão.
