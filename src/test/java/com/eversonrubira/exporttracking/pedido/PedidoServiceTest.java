@@ -1,5 +1,6 @@
 package com.eversonrubira.exporttracking.pedido;
 
+import com.eversonrubira.exporttracking.conta.Empresa;
 import com.eversonrubira.exporttracking.pedido.exception.DocumentoAdicionalJaExisteException;
 import com.eversonrubira.exporttracking.pedido.exception.TransicaoInvalidaException;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +49,7 @@ class PedidoServiceTest {
     void setUp() {
         pedido = Pedido.builder()
                 .numeroPedido("PO-0001")
+                .empresaExportadoraId(Empresa.ID_PADRAO)
                 .cliente("Cliente Teste")
                 .consignee("Consignee Teste")
                 .paisDestino("China")

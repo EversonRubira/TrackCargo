@@ -1,5 +1,6 @@
 package com.eversonrubira.exporttracking.pedido;
 
+import com.eversonrubira.exporttracking.conta.Empresa;
 import com.eversonrubira.exporttracking.pedido.pdf.PdfStatusService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,6 +56,7 @@ class PdfStatusServiceTest {
     void setUp() {
         pedido = Pedido.builder()
                 .numeroPedido("PO-0001")
+                .empresaExportadoraId(Empresa.ID_PADRAO)
                 .cliente("Cliente Teste")
                 .consignee("Consignee Teste")
                 .paisDestino("China")

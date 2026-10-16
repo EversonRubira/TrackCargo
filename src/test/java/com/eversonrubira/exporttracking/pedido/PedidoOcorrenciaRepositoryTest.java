@@ -1,5 +1,6 @@
 package com.eversonrubira.exporttracking.pedido;
 
+import com.eversonrubira.exporttracking.conta.Empresa;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -76,6 +77,7 @@ class PedidoOcorrenciaRepositoryTest {
     private Pedido novoPedido(String numeroPedido) {
         return Pedido.builder()
                 .numeroPedido(numeroPedido)
+                .empresaExportadoraId(Empresa.ID_PADRAO)
                 .cliente("Cliente Teste")
                 .consignee("Consignee Teste")
                 .paisDestino("Argentina")
