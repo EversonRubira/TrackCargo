@@ -10,6 +10,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.firewall.HttpFirewall;
+import org.springframework.security.web.firewall.StrictHttpFirewall;
 import tools.jackson.databind.ObjectMapper;
 
 // "Que rotas exigem sessao". Carregado tambem nos testes @WebMvcTest
@@ -62,6 +64,30 @@ public class SecurityConfig {
                 .requestCache(cache -> cache.disable());
 
         return http.build();
+    }
+
+    // numero_pedido pode ter "/" (NNNNN/AAAA), que chega na URL como %2F.
+    // O Tomcat ja deixa passar (encodedSolidusHandling no WebConfig), mas
+    // o Spring Security tem o seu proprio firewall (StrictHttpFirewall) que
+    // recusa %2F por padrao com 400, antes de chegar ao controller. A
+    // protecao existe contra ambiguidade de caminho: o mesmo recurso
+    // escrito de duas formas para escapar a uma regra de acesso por URL.
+    // Aqui o risco e baixo, porque nenhuma regra de acesso depende do
+    // caminho de um pedido (so /auth/me e /auth/logout tem regra propria).
+    // Basta ser um @Bean: o Spring Security usa-o no lugar do padrao.
+    @Bean
+    public HttpFirewall httpFirewall() {
+        StrictHttpFirewall firewall = new StrictHttpFirewall();
+        // 1. Aceita "%2F" na URL crua.
+        firewall.setAllowUrlEncodedSlash(true);
+        // 2. O firewall tambem olha o caminho ja decodificado pelo Tomcat,
+        // e la um "%" costuma ser sinal de dupla codificacao. So que o
+        // passthrough do Tomcat deixa o "%2F" de proposito por decodificar,
+        // por isso esse "%" e esperado. Tira-se so "%" dessa lista, em vez
+        // de setAllowUrlEncodedPercent(true): assim "%25" (dupla
+        // codificacao, como "%252F") continua recusado na URL crua.
+        firewall.getDecodedUrlBlocklist().remove("%");
+        return firewall;
     }
 
     private AuthenticationEntryPoint responderNaoAutenticado(ObjectMapper objectMapper) {
