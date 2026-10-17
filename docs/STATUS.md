@@ -1,9 +1,10 @@
 # Status — TrackCargo
 
 ## Última atualização
-16/out/2026 — degrau 1, bloco B (o pedido ganha dono), branch
-`feature/pedido-dono-empresa`. Ponto de retomada no fim deste arquivo,
-secção "Degrau 1, bloco B".
+17/out/2026 — correção: números de pedido com barra davam 400 desde o
+bloco A, branch `fix/barra-codificada-numero-pedido`. Ponto de retomada no
+fim deste arquivo, secção "Correção: barra codificada no número do
+pedido".
 
 ## Regra de projeto a partir de agora
 **Nenhum texto de interface fixo no código.** Todo texto visível ao
@@ -1539,3 +1540,38 @@ não separada por empresa.
 
 **Próximo passo real:** revisão do bloco B pelo utilizador. Não iniciar
 o bloco C sem essa revisão.
+
+## Correção: barra codificada no número do pedido (17/out/2026, sessão 5)
+
+Branch `fix/barra-codificada-numero-pedido`. Partiu da `main` antes do
+bloco B; o bloco B (PR #33) foi mergeado entretanto e trazido para esta
+branch com um merge da `main`.
+
+**Sintoma:** depois do PR #32, `GET /pedidos/01001%2F2026` (e qualquer
+rota com `{numeroPedido}` que tenha barra) dava 400 com o corpo de erro
+padrão do Spring Boot. O ecrã mostrava "Falha ao carregar pedido".
+
+**Causa (provada com log DEBUG):** o `StrictHttpFirewall` do Spring
+Security, que corre depois do Tomcat e antes do controller. Recusava em
+dois sítios: `"%2F"` na URL crua e, depois de liberado esse, `"%"` no
+caminho decodificado (o `passthrough` do Tomcat deixa o `%2F` por
+decodificar de propósito). No `3ffd503` (antes do PR #32) o mesmo pedido
+dava 200.
+
+**Feito:**
+- `SecurityConfig.httpFirewall()`: `StrictHttpFirewall` com
+  `setAllowUrlEncodedSlash(true)` e `getDecodedUrlBlocklist().remove("%")`.
+  `%25` (dupla codificação) continua recusado.
+- Teste novo `BarraCodificadaNumeroPedidoE2ETest` (3 testes, HTTP real
+  em porta aleatória): detalhe, rota aninhada do checklist e PDF. Falha
+  na `main`, passa com a correção.
+- `docs/SPEC.md`: nota de que a barra passa por duas camadas.
+- Nenhum teste existente alterado. Suíte: 159 testes, todos verdes
+  (156 do bloco B + 3 novos).
+
+**Adiado (decisão maior, fora desta correção):** mudar as rotas para não
+levarem o número com barra (por exemplo, usar o `id` ou um número sem
+barra na URL).
+
+**Próximo passo real:** revisão desta correção pelo utilizador. Não
+iniciar o bloco C sem essa revisão.

@@ -704,6 +704,17 @@ o valor de cada `@PathVariable` depois de já ter casado o segmento, daí
 manualmente com `curl` (`GET`, incluindo a rota aninhada `/historico`)
 antes e depois do ajuste — 400 sem o customizer, 200 com ele.
 
+**A barra codificada passa agora por duas camadas: Tomcat e Spring
+Security** (desde o degrau 1, bloco A, PR #32). O Spring Security tem um
+firewall próprio (`StrictHttpFirewall`) que corre antes do controller e
+recusava o mesmo `%2F` com 400, mesmo com o Tomcat já a deixar passar.
+`SecurityConfig.httpFirewall()` faz duas coisas: aceita `%2F` na URL
+crua, e tira `"%"` da lista de caracteres proibidos no caminho
+decodificado. Esse `%` aparece lá por causa do `passthrough` do Tomcat,
+que deixa o `%2F` por decodificar. `%25` (dupla codificação, `%252F`)
+continua recusado. Coberto por `BarraCodificadaNumeroPedidoE2ETest`, que
+usa HTTP real: o `MockMvc` não passa por nenhuma das duas camadas.
+
 Toda resposta de erro segue corpo padrão (contrato v2, ver
 "Contrato de erro — i18n-infra Bloco 1" abaixo pra por que mudou):
 ```json
