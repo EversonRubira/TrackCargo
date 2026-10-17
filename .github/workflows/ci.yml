@@ -14,7 +14,9 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_DB: export_tracking
+          # Os testes ligam a export_tracking_test (src/test/resources/
+          # application.properties), por isso e esta a base que o servico cria.
+          POSTGRES_DB: export_tracking_test
           POSTGRES_USER: export_tracking
           POSTGRES_PASSWORD: export_tracking
         ports:

@@ -10,6 +10,8 @@ services:
       - "5432:5432"
     volumes:
       - export-tracking-data:/var/lib/postgresql/data
+      # Cria export_tracking_test no primeiro arranque (volume vazio).
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
 
 volumes:
   export-tracking-data:
