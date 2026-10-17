@@ -1,10 +1,9 @@
 # Status — TrackCargo
 
 ## Última atualização
-17/out/2026 — correção: números de pedido com barra davam 400 desde o
-bloco A, branch `fix/barra-codificada-numero-pedido`. Ponto de retomada no
-fim deste arquivo, secção "Correção: barra codificada no número do
-pedido".
+17/out/2026 — base de dados própria para os testes, branch
+`fix/base-de-testes-propria`. Ponto de retomada no fim deste arquivo,
+secção "Base de dados própria para os testes".
 
 ## Regra de projeto a partir de agora
 **Nenhum texto de interface fixo no código.** Todo texto visível ao
@@ -1575,3 +1574,51 @@ barra na URL).
 
 **Próximo passo real:** revisão desta correção pelo utilizador. Não
 iniciar o bloco C sem essa revisão.
+
+## Base de dados própria para os testes (17/out/2026, sessão 6)
+
+Branch `fix/base-de-testes-propria`. Nome sem alteração (TrackCargo).
+
+**Problema:** `mvn test` corria contra a base de desenvolvimento
+(`export_tracking`): enchia a lista de pedidos com `E2E-...` e o
+`PedidoSequenciaServiceTest` apagava a linha do ano atual de
+`pedido_sequencia`, o que fazia o formulário sugerir um número já usado
+(500 por chave duplicada).
+
+**Feito:**
+- `src/test/resources/application.properties` só com
+  `spring.datasource.url=.../export_tracking_test`. É `.properties` de
+  propósito: ganha ao `application.yml` de `src/main` na chave repetida e
+  não o esconde (um `application.yml` aqui esconderia o de `src/main` por
+  inteiro). Está no classpath de teste, por isso vale também para testes
+  lançados do IDE, sem passar pelo surefire. Nenhum teste nem o `pom.xml`
+  foram alterados.
+- `docker-compose.yml` monta `docker/initdb/` em
+  `/docker-entrypoint-initdb.d`, e o script `01-base-de-testes.sql` faz
+  `CREATE DATABASE export_tracking_test;`. O Postgres só corre estes
+  scripts com o volume vazio.
+- Quem já tem o volume cria a base uma vez à mão (comando no README,
+  secção "Banco de dados"). O Flyway cria as tabelas no primeiro
+  `mvn test`.
+- CI: o serviço Postgres passa a criar `POSTGRES_DB:
+  export_tracking_test`. É o Postgres próprio do CI (descartável), e não
+  a tua base.
+- Verificado: duas corridas de `mvn test` (159 testes, verdes) e duas
+  classes lançadas diretamente no JUnit, sem Maven. A base
+  `export_tracking` ficou idêntica (contagens, hash de cada tabela e
+  contadores de escrita do Postgres); as escritas foram para
+  `export_tracking_test`.
+
+**O que não foi feito:** os pedidos `E2E-...` que já estão na base de
+desenvolvimento ficaram lá (limpar é decisão do Everson). O contador de
+`pedido_sequencia` que um teste antigo possa ter apagado também não foi
+reposto.
+
+**Atenção:** há testes com `@SpringBootTest` que sobem a aplicação inteira
+(E2E, `AuthControllerTest`, `PedidoSequenciaServiceTest`). Se um dia
+alguém criar um `application-*.yml` de teste, ou mexer na ordem de
+precedência, convém repetir a verificação do README: corre `mvn test` e
+confirma que a contagem de `pedido` em `export_tracking` não muda.
+
+**Próximo passo real:** revisão deste PR. O bloco C (proteger endpoints,
+CSRF, filtro por empresa, frontend) é o próximo.

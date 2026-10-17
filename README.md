@@ -54,6 +54,17 @@ A recusa de um documento do checklist **nunca** altera o estado do pedido — o 
 docker compose up -d
 ```
 
+O Postgres tem duas bases: `export_tracking` (a aplicação, `mvn spring-boot:run`) e `export_tracking_test` (só os testes, `mvn test`), para os testes não sujarem os dados que usas a desenvolver.
+
+- **Volume novo (primeira vez):** a base de testes é criada sozinha pelo script `docker/initdb/01-base-de-testes.sql`.
+- **Já tens o volume de antes:** esse script **só corre com o volume vazio**, por isso cria a base de testes uma vez, à mão:
+
+```bash
+docker exec -it export-tracking-db psql -U export_tracking -d export_tracking -c "CREATE DATABASE export_tracking_test;"
+```
+
+O Flyway cria as tabelas dela no primeiro `mvn test`. Se o comando disser que a base já existe, está tudo certo.
+
 > Em ambientes sem daemon Docker disponível, é possível usar um PostgreSQL 16 nativo com as mesmas credenciais/porta do `application.yml` (`export_tracking`/`export_tracking`, porta 5432) no lugar do container.
 
 ### Backend
@@ -77,6 +88,7 @@ Sobe em `http://localhost:5173`.
 ```bash
 mvn test
 ```
+Corre contra `export_tracking_test` (ver "Banco de dados"), nunca contra a base de desenvolvimento.
 
 ## Documentação
 
