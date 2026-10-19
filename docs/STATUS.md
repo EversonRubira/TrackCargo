@@ -1,9 +1,9 @@
 # Status — TrackCargo
 
 ## Última atualização
-17/out/2026 — base de dados própria para os testes, branch
-`fix/base-de-testes-propria`. Ponto de retomada no fim deste arquivo,
-secção "Base de dados própria para os testes".
+19/out/2026 — fronteiras entre módulos (ADR-002), branch
+`refactor/fronteiras-modulos`. Ponto de retomada no fim deste arquivo,
+secção "Fronteiras entre módulos (ADR-002)".
 
 ## Regra de projeto a partir de agora
 **Nenhum texto de interface fixo no código.** Todo texto visível ao
@@ -1622,3 +1622,41 @@ confirma que a contagem de `pedido` em `export_tracking` não muda.
 
 **Próximo passo real:** revisão deste PR. O bloco C (proteger endpoints,
 CSRF, filtro por empresa, frontend) é o próximo.
+
+
+## Fronteiras entre módulos (ADR-002) (19/out/2026)
+
+Branch `refactor/fronteiras-modulos`. Sem mudança de comportamento da API
+(mesmas respostas antes e depois, comparadas byte a byte em 17 pedidos
+HTTP reais).
+
+**Feito (um commit por tema):**
+- `docs/adr/ADR-002-monolito-modular.md`: monólito modular aceite. Nota
+  de que o ADR-001 (stack, desempenho e custo) está proposto e ainda não
+  está no repositório. Exceção à regra 4 escrita: chaves estrangeiras
+  entre módulos e migrações Flyway que tocam tabelas de outro módulo são
+  permitidas; se um módulo for separado, as chaves estrangeiras caem.
+- `ErrorResponse`, `GlobalExceptionHandler` e `ValidacaoCodigoMapper`
+  passam de `pedido.web` para `config.web` (transversal). O
+  `ValidacaoCodigoMapperTest` e o `GlobalExceptionHandlerTest` mudam de
+  pacote com eles (acedem a membros package-private); asserções iguais.
+- `conta.EmpresaPadrao.ID` substitui `Empresa.ID_PADRAO` (fonte única).
+  O `PedidoController` deixa de importar a entidade `Empresa`. A V7 não
+  foi tocada: o comentário dela ainda cita `Empresa.ID_PADRAO`, porque
+  mudar uma migração aplicada muda o checksum do Flyway.
+- ArchUnit 1.5.1 (`FronteiraModulosTest`): uma regra nos dois sentidos,
+  `pedido` não depende de entidades nem repositórios de `conta`, e
+  vice-versa. Só código de produção. Testada por mutação. Se gerar
+  ruído, remove-se.
+- Suíte: 161 testes (159 + 2 do ArchUnit), verdes.
+
+**Fica para o bloco C:** o `ContaService` expor só ids a outros módulos
+(ex: id da empresa do utilizador autenticado). Hoje não teria quem o
+chamasse; o ArchUnit garante que ninguém usa `Usuario` fora de `conta`
+até lá.
+
+**Observação (já existia):** a ordem das chaves em `parametros` de
+`PARAMETRO_INVALIDO` pode variar entre arranques da JVM (`Map.of` não
+garante ordem). O conteúdo é igual; o frontend lê por chave.
+
+**Próximo passo real:** revisão deste PR. Depois, o bloco C.
