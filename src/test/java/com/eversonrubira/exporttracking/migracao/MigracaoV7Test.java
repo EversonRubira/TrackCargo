@@ -1,6 +1,6 @@
 package com.eversonrubira.exporttracking.migracao;
 
-import com.eversonrubira.exporttracking.conta.Empresa;
+import com.eversonrubira.exporttracking.conta.EmpresaPadrao;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,7 +59,7 @@ class MigracaoV7Test {
         assertThat(contarPedidos()).isEqualTo(3);
         List<UUID> donas = jdbc.queryForList(
                 "SELECT empresa_exportadora_id FROM " + SCHEMA + ".pedido", UUID.class);
-        assertThat(donas).hasSize(3).containsOnly(Empresa.ID_PADRAO);
+        assertThat(donas).hasSize(3).containsOnly(EmpresaPadrao.ID);
 
         String anulavel = jdbc.queryForObject("""
                 SELECT is_nullable FROM information_schema.columns

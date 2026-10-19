@@ -10,7 +10,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
 // Postgres real: o id da empresa padrao aparece duas vezes (SQL da V7 e
-// Empresa.ID_PADRAO). Este teste falha se alguem mudar um sem o outro.
+// EmpresaPadrao.ID). Este teste falha se alguem mudar um sem o outro.
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 class EmpresaRepositoryTest {
@@ -20,7 +20,7 @@ class EmpresaRepositoryTest {
 
     @Test
     void migracaoCriouEmpresaPadraoComOIdDaConstante() {
-        Optional<Empresa> padrao = empresaRepository.findById(Empresa.ID_PADRAO);
+        Optional<Empresa> padrao = empresaRepository.findById(EmpresaPadrao.ID);
 
         assertThat(padrao).isPresent();
         assertThat(padrao.get().getNome()).isEqualTo("Empresa padrao");

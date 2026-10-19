@@ -1,6 +1,6 @@
 package com.eversonrubira.exporttracking.pedido.web;
 
-import com.eversonrubira.exporttracking.conta.Empresa;
+import com.eversonrubira.exporttracking.conta.EmpresaPadrao;
 import com.eversonrubira.exporttracking.pedido.ChecklistDocumento;
 import com.eversonrubira.exporttracking.pedido.ChecklistService;
 import com.eversonrubira.exporttracking.pedido.Pedido;
@@ -57,7 +57,7 @@ public class PedidoController {
         // TODO bloco C: a dona passa a ser a empresa do utilizador
         // autenticado. Ate la os endpoints estao abertos (pode nao haver
         // sessao), por isso todo pedido novo fica com a empresa padrao.
-        Pedido pedido = pedidoService.criar(request.paraPedido(Empresa.ID_PADRAO));
+        Pedido pedido = pedidoService.criar(request.paraPedido(EmpresaPadrao.ID));
         return responder(pedido);
     }
 

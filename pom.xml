@@ -121,6 +121,14 @@
             <version>5.5.6</version>
             <scope>test</scope>
         </dependency>
+        <!-- So o FronteiraModulosTest (ADR-002): barra pedido de usar
+             entidades/repositorios de conta e vice-versa. -->
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <version>1.5.1</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

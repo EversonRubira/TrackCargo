@@ -9,7 +9,7 @@ produto: é um problema de migração única (ver `docs/SPEC-degrau-1.md`,
 
 A V7 pôs todos os pedidos que já existiam na **empresa padrão**
 (`id = 00000000-0000-0000-0000-000000000001`, constante
-`Empresa.ID_PADRAO`). Essa empresa não tem utilizador nenhum: a migração
+`EmpresaPadrao.ID`). Essa empresa não tem utilizador nenhum: a migração
 não cria senha de propósito, porque ficaria um segredo no histórico do
 repositório. Quando o bloco C filtrar os pedidos pela empresa de quem
 está autenticado, ninguém veria esses pedidos. Este procedimento dá-lhes

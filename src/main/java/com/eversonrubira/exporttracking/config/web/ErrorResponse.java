@@ -1,4 +1,4 @@
-package com.eversonrubira.exporttracking.pedido.web.dto;
+package com.eversonrubira.exporttracking.config.web;
 
 import java.util.List;
 import java.util.Map;

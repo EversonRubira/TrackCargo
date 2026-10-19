@@ -1,6 +1,6 @@
 package com.eversonrubira.exporttracking.pedido.web;
 
-import com.eversonrubira.exporttracking.conta.Empresa;
+import com.eversonrubira.exporttracking.conta.EmpresaPadrao;
 import com.eversonrubira.exporttracking.pedido.ChecklistDocumento;
 import com.eversonrubira.exporttracking.pedido.ChecklistService;
 import com.eversonrubira.exporttracking.pedido.FormaPagamento;
@@ -78,7 +78,7 @@ class PedidoControllerTest {
     void setUp() {
         pedido = Pedido.builder()
                 .numeroPedido("PO-0001")
-                .empresaExportadoraId(Empresa.ID_PADRAO)
+                .empresaExportadoraId(EmpresaPadrao.ID)
                 .cliente("Cliente Teste")
                 .consignee("Consignee Teste")
                 .paisDestino("China")
@@ -173,7 +173,7 @@ class PedidoControllerTest {
 
         ArgumentCaptor<Pedido> pedidoCaptor = ArgumentCaptor.forClass(Pedido.class);
         verify(pedidoService).criar(pedidoCaptor.capture());
-        assertThat(pedidoCaptor.getValue().getEmpresaExportadoraId()).isEqualTo(Empresa.ID_PADRAO);
+        assertThat(pedidoCaptor.getValue().getEmpresaExportadoraId()).isEqualTo(EmpresaPadrao.ID);
     }
 
     @Test

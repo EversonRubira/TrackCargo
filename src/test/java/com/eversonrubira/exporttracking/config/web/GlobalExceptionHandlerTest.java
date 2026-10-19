@@ -1,7 +1,6 @@
-package com.eversonrubira.exporttracking.pedido.web;
+package com.eversonrubira.exporttracking.config.web;
 
 import com.eversonrubira.exporttracking.pedido.exception.DocumentoAdicionalJaExisteException;
-import com.eversonrubira.exporttracking.pedido.web.dto.ErrorResponse;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;

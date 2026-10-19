@@ -1,6 +1,6 @@
 package com.eversonrubira.exporttracking.pedido;
 
-import com.eversonrubira.exporttracking.conta.Empresa;
+import com.eversonrubira.exporttracking.conta.EmpresaPadrao;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,7 +47,7 @@ class ChecklistServiceTest {
     void setUp() {
         pedido = Pedido.builder()
                 .numeroPedido("PO-0001")
-                .empresaExportadoraId(Empresa.ID_PADRAO)
+                .empresaExportadoraId(EmpresaPadrao.ID)
                 .cliente("Cliente Teste")
                 .consignee("Consignee Teste")
                 .paisDestino("China")
