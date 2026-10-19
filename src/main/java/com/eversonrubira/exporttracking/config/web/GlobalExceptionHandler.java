@@ -1,4 +1,4 @@
-package com.eversonrubira.exporttracking.pedido.web;
+package com.eversonrubira.exporttracking.config.web;
 
 import com.eversonrubira.exporttracking.conta.exception.EmailJaRegistadoException;
 import com.eversonrubira.exporttracking.conta.exception.SenhaCurtaException;
@@ -10,7 +10,6 @@ import com.eversonrubira.exporttracking.pedido.exception.DocumentoNaoAceitoExcep
 import com.eversonrubira.exporttracking.pedido.exception.DocumentoNaoEnviadoException;
 import com.eversonrubira.exporttracking.pedido.exception.PedidoNaoEncontradoException;
 import com.eversonrubira.exporttracking.pedido.exception.TransicaoInvalidaException;
-import com.eversonrubira.exporttracking.pedido.web.dto.ErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -28,6 +27,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+// Transversal (ADR-002): traduz as excecoes de todos os modulos para o
+// mesmo contrato ErrorResponse. Por isso vive em config.web e nao dentro
+// de um modulo: conhece as excecoes de pedido e de conta, mas nenhum
+// modulo depende dele.
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 

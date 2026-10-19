@@ -1,6 +1,5 @@
-package com.eversonrubira.exporttracking.pedido.web;
+package com.eversonrubira.exporttracking.config.web;
 
-import com.eversonrubira.exporttracking.pedido.web.dto.ErrorResponse;
 import jakarta.validation.ConstraintViolation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

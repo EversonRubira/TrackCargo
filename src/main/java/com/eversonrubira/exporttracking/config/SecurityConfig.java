@@ -1,6 +1,6 @@
 package com.eversonrubira.exporttracking.config;
 
-import com.eversonrubira.exporttracking.pedido.web.dto.ErrorResponse;
+import com.eversonrubira.exporttracking.config.web.ErrorResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
