@@ -55,6 +55,17 @@ A secção 10 não define quem decide "ajudam". O desenho aprovado do T14 fixou 
 
 10 chamadas, 0 retries, média 10.7 s, máximo 15.1 s (limite de 30 s), 22 089 tokens de entrada, 13 402 de saída, US$0.1782. Por falha analisada, o triage acrescenta cerca de 10 s e menos de US$0.02 ao CI, com o máximo de 5 falhas por pipeline.
 
+## Limitações conhecidas da V1 (aceites no review final, 06/nov/2026)
+
+1. Meta automática: 7/10, abaixo do alvo de 8/10.
+2. Revisão humana: 10/10 diagnósticos considerados úteis (um revisor; reportado à parte, não substitui o número automático).
+3. Três `AUTO_FAIL` (casos 01, 09 e 10) classificados como `CRITERION LIMITATION`: o documento citado estava no contexto, mas o modelo acrescentou descrição ou secção ao caminho e o critério congelado exigia outro formato.
+4. Apenas uma execução por caso, sem medição de variância.
+5. O happy path real foi validado em workflow controlado, mas ainda não foi observado no `ci.yml` normal.
+6. CA-05 é garantido por arquitetura e inspeção, sem teste específico contra a introdução futura de escrita.
+
+Fora da V1, tratado como V2 separada depois do merge: RAG, clustering, alterações ao scorer, mudanças de prompt e remediação automática.
+
 ## Desvios e riscos por resolver
 
 1. **Meta automática de 8/10 não atingida** (7/10); três falsos negativos por formato de `relatedDocuments` num critério congelado. Qualquer correção é V2 ou exige aprovação e novo baseline.
