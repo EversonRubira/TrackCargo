@@ -24,7 +24,8 @@ Registo das decisões aprovadas pelo Everson em 06/11/2026 antes do Bloco 1. Nã
 - Bloco 1 (T01 a T05): implementado em 06/11/2026. Código em `src/main/java/com/eversonrubira/exporttracking/triage/`, testes em `src/test/java/.../triage/` e `.../arquitetura/IsolamentoTriageTest.java`.
 - Bloco 2 (T06 a T09): implementado em 06/11/2026, sem nenhuma chamada ao Claude real (os testes usam um servidor HTTP local). Prompt versionado com fronteira de confiança (`provider/TriagePrompt`), cliente com a política do ADR-003 (`provider/ClaudeClient`), validação do contrato (`validation/`) e renderer (`rendering/TriageRenderer`).
 - Bloco 3 (T10 a T12): implementado em 06/11/2026, ainda sem `ANTHROPIC_API_KEY` e sem chamadas reais ao Claude. Evidência da execução controlada no CI em `evidence/bloco-3-ci-controlled-run.md`.
-- Pendentes: Bloco 4 (T13 a T15), e a primeira execução real com a chave (depois de autorização).
+- T13 (Bloco 4): dataset de 10 casos congelado em `evals/dataset-v1/` (descrição em `evals/DATASET-V1.md`), à espera de revisão. Sem chamadas ao Claude.
+- Pendentes: T14 e T15, e a primeira execução real com a chave (depois de autorização).
 
 ## Decisões de detalhe do Bloco 2 (dentro do aprovado)
 - Segredos: `ClaudeClient.diagnose` só aceita `SanitizedContext`, que só o `SecretFilter` cria. O log do cliente só tem estado HTTP, nomes de campo e contagens; nunca corpo de pedido nem de resposta. Fecha o ponto pendente do T05 para o *provider input*; o *observability output* fica para o T12.
@@ -48,3 +49,9 @@ Registo das decisões aprovadas pelo Everson em 06/11/2026 antes do Bloco 1. Nã
 ## Fecho da pendência do T05
 - Provider input: fechado no T07 (`ClaudeClientTest`, `TriagePipelineTest`): nenhum segredo conhecido no corpo enviado ao provider, mesmo com o provider a devolver os segredos em eco.
 - Observability output: fechado no T12 (`TriagePipelineTest`): nenhum segredo conhecido no log completo do pipeline (diagnóstico, log do cliente, métricas, resumo), em caminhos de sucesso e de falha, com segredos no id do teste, mensagem, pilha, log e ambiente. Na execução controlada do CI, a secção do triage não tem nada com forma de segredo.
+
+## T13: dataset de evals (dentro do aprovado)
+- Nada foi alterado em retrieval, prompt, spec, architecture nem ADRs por causa dos casos. Os achados sobre o retriever (a classe de produção não é recuperada em 5 casos de asserção) estão registados em `evals/DATASET-V1.md` e ficam para decisão depois do T14.
+- Os relatórios congelados vêm de execuções reais do código de cada caso com um executor mínimo (JDK 21 e `opentest4j` real), não de `mvn test`. O que é aproximado está descrito em `evals/DATASET-V1.md`.
+- Critérios de utilidade em duas camadas: piso automático por termos (`UsefulnessCriteria`, nos testes) e `manualChecks` para revisão humana. Os dois casos com teto MEDIUM (06 e 08) são os que não têm evidência para HIGH.
+- Os critérios e os diagnósticos de referência foram escritos pelo mesmo autor; provam que são cumpríveis, não que são imparciais.

@@ -1,0 +1,22 @@
+{
+  "probableCause": "The test cannot reach a database on localhost:54329. That is the local-only default port in the test (db.port), so in an environment where the database listens elsewhere the connection is refused. It is a configuration/environment problem, not a code defect.",
+  "evidence": [
+    "ConnectException: Connection refused while connecting to localhost:54329.",
+    "DB_PORT defaults to 54329 when -Ddb.port is not set.",
+    "The URL test with port 5432 passes, so only the configured port differs."
+  ],
+  "relatedDocuments": [],
+  "possibleSolutions": [
+    {
+      "solution": "Pass -Ddb.port with the port the CI database listens on, or read the port from the environment.",
+      "tradeoffs": [
+        "Needs the CI configuration to export the port."
+      ]
+    }
+  ],
+  "confidence": "MEDIUM",
+  "confidenceReason": "The refused connection and the default port are explicit, but the port the CI database really uses is not in the context.",
+  "limitations": [
+    "The CI database configuration was not provided."
+  ]
+}

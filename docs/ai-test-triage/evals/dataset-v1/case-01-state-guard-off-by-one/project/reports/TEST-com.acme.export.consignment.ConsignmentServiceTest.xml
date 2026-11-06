@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.acme.export.consignment.ConsignmentServiceTest" tests="3" errors="1" skipped="0" failures="0">
+  <testcase name="cancelsADraftConsignment" classname="com.acme.export.consignment.ConsignmentServiceTest" time="0.007"/>
+  <testcase name="cancelsABookedConsignment" classname="com.acme.export.consignment.ConsignmentServiceTest" time="0.010">
+    <error message="Cannot cancel consignment C-101 in status BOOKED" type="com.acme.export.consignment.InvalidTransitionException"><![CDATA[com.acme.export.consignment.InvalidTransitionException: Cannot cancel consignment C-101 in status BOOKED
+	at com.acme.export.consignment.ConsignmentService.cancel(ConsignmentService.java:12)
+	at com.acme.export.consignment.ConsignmentServiceTest.cancelsABookedConsignment(ConsignmentServiceTest.java:25)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+]]></error>
+  </testcase>
+  <testcase name="refusesToCancelALoadedConsignment" classname="com.acme.export.consignment.ConsignmentServiceTest" time="0.001"/>
+</testsuite>

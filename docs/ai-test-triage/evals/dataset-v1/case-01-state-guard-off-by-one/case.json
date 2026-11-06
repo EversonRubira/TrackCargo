@@ -1,0 +1,61 @@
+{
+  "id": "case-01-state-guard-off-by-one",
+  "title": "Cancellation guard rejects a BOOKED consignment",
+  "difficulty": "EASY",
+  "categories": [
+    "LOGIC_ERROR",
+    "DOC_RELEVANT"
+  ],
+  "failedTest": "com.acme.export.consignment.ConsignmentServiceTest#cancelsABookedConsignment",
+  "presentedFailure": "InvalidTransitionException 'Cannot cancel consignment C-101 in status BOOKED', thrown by ConsignmentService.cancel (line 12) when the test cancels a BOOKED consignment. The other two tests of the class pass.",
+  "knownRootCause": "The guard in ConsignmentService.cancel uses 'ordinal() >= Status.BOOKED.ordinal()', so BOOKED is rejected too. The spec allows cancelling DRAFT and BOOKED and forbids it only from LOADED onwards, so the comparison must be strict ('>' BOOKED). Off-by-one at the boundary. The test is correct.",
+  "expectedEvidence": [
+    "The exception is thrown inside ConsignmentService.cancel, at the status comparison (ConsignmentService.java:12).",
+    "The comparison uses '>=' against Status.BOOKED, which includes BOOKED.",
+    "docs/SPEC.md, section 'Consignment lifecycle': cancellation is allowed in DRAFT and BOOKED, never from LOADED onwards.",
+    "The sibling test refusesToCancelALoadedConsignment passes, which confirms the boundary is exactly at BOOKED."
+  ],
+  "relatedSpecs": [
+    "docs/SPEC.md#Consignment lifecycle"
+  ],
+  "retrieval": {
+    "expectedArtifacts": [
+      "TEST_SOURCE src/test/java/com/acme/export/consignment/ConsignmentServiceTest.java",
+      "CITED_SOURCE src/main/java/com/acme/export/consignment/ConsignmentService.java",
+      "RELATED_SOURCE src/main/java/com/acme/export/consignment/InvalidTransitionException.java",
+      "DOCUMENT docs/SPEC.md"
+    ],
+    "expectedLimitationsContain": [
+      "No execution log output was available"
+    ],
+    "answerability": "Answerable: the failing class, the spec section and the test are all retrieved."
+  },
+  "usefulness": {
+    "maxConfidence": "HIGH",
+    "mustMention": [
+      [
+        "ConsignmentService"
+      ],
+      [
+        ">= status.booked",
+        ">= booked",
+        ">=",
+        "off-by-one",
+        "inclusive",
+        "boundary",
+        "too strict",
+        "ordinal"
+      ],
+      [
+        "booked"
+      ]
+    ],
+    "causeMustNotMention": [],
+    "mustNotMention": [],
+    "mustDeclareLimitations": false,
+    "mustCiteRelatedDocument": true,
+    "manualChecks": [
+      "The proposed fix changes the comparison to '>' (or equivalent) and does not weaken the test or allow cancelling LOADED."
+    ]
+  }
+}

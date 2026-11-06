@@ -18,7 +18,9 @@ Claude com a política do ADR-003, validação do contrato da resposta e rendere
 limite de 5 falhas e métricas no log. Validado numa execução controlada no CI (7 falhas
 deliberadas, sem chave: `TRIAGE FAILED` com `MISSING_API_KEY`, 5 analisadas, 2 saltadas,
 job falhado pelos testes). Ainda sem `ANTHROPIC_API_KEY` e sem chamadas reais ao Claude.
-Próximo: Bloco 4 (T13 a T15) e a primeira execução real, depois de aprovação.
+06/nov/2026 — T13 feito: dataset congelado de 10 falhas Java com causa conhecida em
+`docs/ai-test-triage/evals/dataset-v1/` (ver `evals/DATASET-V1.md`), à espera de revisão.
+Sem chamadas ao Claude. Próximo: aprovação do dataset, depois T14 e T15 e a primeira execução real.
 
 ## Regra de projeto a partir de agora
 **Nenhum texto de interface fixo no código.** Todo texto visível ao

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.acme.export.storage.StoragePolicyTest" tests="2" errors="0" skipped="0" failures="1">
+  <testcase name="storageBeyondTheFreePeriodIsCharged" classname="com.acme.export.storage.StoragePolicyTest" time="0.005"/>
+  <testcase name="freeStorageLasts7Days" classname="com.acme.export.storage.StoragePolicyTest" time="0.008">
+    <failure message="expected: &lt;7&gt; but was: &lt;10&gt;" type="org.opentest4j.AssertionFailedError"><![CDATA[org.opentest4j.AssertionFailedError: expected: <7> but was: <10>
+	at org.junit.jupiter.api.Assertions.notEqual(Assertions.java:11)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:16)
+	at com.acme.export.storage.StoragePolicyTest.freeStorageLasts7Days(StoragePolicyTest.java:14)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+]]></failure>
+  </testcase>
+</testsuite>

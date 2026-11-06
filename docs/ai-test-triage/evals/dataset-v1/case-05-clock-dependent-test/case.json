@@ -1,0 +1,59 @@
+{
+  "id": "case-05-clock-dependent-test",
+  "title": "Test with a hard-coded date that is now in the past",
+  "difficulty": "MEDIUM",
+  "categories": [
+    "TIME_DEPENDENCE",
+    "DOC_ABSENT"
+  ],
+  "failedTest": "com.acme.export.promotion.PromotionTest#autumnPromotionIsStillActive",
+  "presentedFailure": "AssertionFailedError: expected <true> but was <false> in autumnPromotionIsStillActive. The other test of the class passes. Frozen report generated on 2026-11-06.",
+  "knownRootCause": "The test is time-dependent: Promotion.isActive reads the system clock (LocalDate.now()) and the test uses a fixed expiry of 2026-10-31. Once the real date passed 2026-10-31 the promotion is correctly inactive, so the test started failing without any code change. Neither the production logic nor the data is wrong; the test needs an injectable Clock or a relative date.",
+  "expectedEvidence": [
+    "The test builds the promotion with LocalDate.of(2026, 10, 31), an absolute date.",
+    "The assertion expects true, which is only correct while today is on or before that date.",
+    "The sibling test with 2020-12-31 passes, showing the logic itself works.",
+    "Promotion.isActive uses LocalDate.now() (not retrieved; inferable from the failure shape)."
+  ],
+  "relatedSpecs": [],
+  "retrieval": {
+    "expectedArtifacts": [
+      "TEST_SOURCE src/test/java/com/acme/export/promotion/PromotionTest.java"
+    ],
+    "expectedLimitationsContain": [
+      "No spec or ADR is mapped to com.acme.export.promotion.PromotionTest"
+    ],
+    "answerability": "Partly answerable: Promotion.java is NOT retrieved (stack cites only the test). The hypothesis 'depends on the current date' comes from the absolute date in the test; the model cannot know today's date from the context."
+  },
+  "usefulness": {
+    "maxConfidence": "HIGH",
+    "mustMention": [
+      [
+        "clock",
+        "current date",
+        "today",
+        "LocalDate.now",
+        "system date",
+        "time-dependent",
+        "time dependent"
+      ],
+      [
+        "2026",
+        "expired",
+        "past",
+        "passed",
+        "absolute date",
+        "hard-coded",
+        "hardcoded"
+      ]
+    ],
+    "causeMustNotMention": [],
+    "mustNotMention": [],
+    "mustDeclareLimitations": false,
+    "mustCiteRelatedDocument": false,
+    "manualChecks": [
+      "The proposed fix removes the dependence on the real clock (inject Clock or use a relative date) instead of just changing the date to a later one.",
+      "If the diagnosis is HIGH it should say that Promotion.java was not provided."
+    ]
+  }
+}

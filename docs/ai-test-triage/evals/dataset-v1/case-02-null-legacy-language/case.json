@@ -1,0 +1,59 @@
+{
+  "id": "case-02-null-legacy-language",
+  "title": "NullPointerException for a legacy customer without language",
+  "difficulty": "EASY",
+  "categories": [
+    "NULL_HANDLING",
+    "DOC_ABSENT"
+  ],
+  "failedTest": "com.acme.export.notification.NotifierTest#legacyCustomerGetsTheEnglishSubject",
+  "presentedFailure": "NullPointerException from Notifier.subjectFor (line 8): Customer.language() returned null, and the code calls toLowerCase() on it.",
+  "knownRootCause": "Legacy customers were migrated without a preferred language, so Customer.language() is null. Notifier.subjectFor dereferences it without a null check. The test models the legacy customer on purpose and expects the English default. The defect is in Notifier (missing null-safe default).",
+  "expectedEvidence": [
+    "The helpful NPE message names Customer.language() as the null value.",
+    "Notifier.java:8 calls language().toLowerCase() with no null check.",
+    "The test builds 'legacyCustomerGetsTheEnglishSubject' with a null language and expects the English subject.",
+    "No spec or ADR is mapped to the notification package: a good diagnosis does not invent one."
+  ],
+  "relatedSpecs": [],
+  "retrieval": {
+    "expectedArtifacts": [
+      "TEST_SOURCE src/test/java/com/acme/export/notification/NotifierTest.java",
+      "CITED_SOURCE src/main/java/com/acme/export/notification/Notifier.java",
+      "RELATED_SOURCE src/main/java/com/acme/export/customer/Customer.java"
+    ],
+    "expectedLimitationsContain": [
+      "No spec or ADR is mapped to com.acme.export.notification.NotifierTest"
+    ],
+    "answerability": "Answerable from code alone; documentation is absent by design."
+  },
+  "usefulness": {
+    "maxConfidence": "HIGH",
+    "mustMention": [
+      [
+        "null"
+      ],
+      [
+        "language"
+      ],
+      [
+        "Notifier"
+      ],
+      [
+        "legacy",
+        "migrat",
+        "without a language",
+        "no language",
+        "missing language"
+      ]
+    ],
+    "causeMustNotMention": [],
+    "mustNotMention": [],
+    "mustDeclareLimitations": false,
+    "mustCiteRelatedDocument": false,
+    "manualChecks": [
+      "The diagnosis does not cite documentation that was not provided.",
+      "The proposed fix is a null-safe default in Notifier (or a data fix), not swallowing the exception."
+    ]
+  }
+}

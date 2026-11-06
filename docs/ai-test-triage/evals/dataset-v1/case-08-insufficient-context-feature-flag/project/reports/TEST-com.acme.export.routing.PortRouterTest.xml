@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.acme.export.routing.PortRouterTest" tests="1" errors="0" skipped="0" failures="1">
+  <testcase name="routesGermanCargoThroughRotterdam" classname="com.acme.export.routing.PortRouterTest" time="0.013">
+    <failure message="expected: &lt;ROTTERDAM&gt; but was: &lt;HAMBURG&gt;" type="org.opentest4j.AssertionFailedError"><![CDATA[org.opentest4j.AssertionFailedError: expected: <ROTTERDAM> but was: <HAMBURG>
+	at org.junit.jupiter.api.Assertions.notEqual(Assertions.java:11)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:14)
+	at com.acme.export.routing.PortRouterTest.routesGermanCargoThroughRotterdam(PortRouterTest.java:13)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+]]></failure>
+  </testcase>
+</testsuite>

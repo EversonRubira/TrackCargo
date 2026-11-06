@@ -1,0 +1,58 @@
+{
+  "id": "case-10-locale-number-parsing",
+  "title": "Parser ignores the importer's number format",
+  "difficulty": "EASY",
+  "categories": [
+    "PARSING",
+    "LOCALE",
+    "DOC_RELEVANT"
+  ],
+  "failedTest": "com.acme.export.amount.AmountParserTest#parsesABrazilianFormattedAmount",
+  "presentedFailure": "NumberFormatException 'Character , is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.' from BigDecimal, called by AmountParser.parse (line 9) with the text \"1.234,50\".",
+  "knownRootCause": "AmountParser.parse passes the raw text to new BigDecimal(...), which only understands a dot decimal and no thousands separator. The spec requires accepting the importer's locale (pt-BR/es: '1.234,50'; en: '1,234.50') and converting to the canonical form. The parser has no locale handling. The test is correct.",
+  "expectedEvidence": [
+    "The stack goes from BigDecimal.<init> straight into AmountParser.parse:9.",
+    "The comma is the character the message complains about, and the input is a pt-BR formatted amount.",
+    "docs/SPEC-i18n.md 'Amount formats': pt-BR and es use dot for thousands and comma for decimals, and the system must accept them.",
+    "The plain-decimal test passes, so only the locale format fails."
+  ],
+  "relatedSpecs": [
+    "docs/SPEC-i18n.md#Amount formats"
+  ],
+  "retrieval": {
+    "expectedArtifacts": [
+      "TEST_SOURCE src/test/java/com/acme/export/amount/AmountParserTest.java",
+      "CITED_SOURCE src/main/java/com/acme/export/amount/AmountParser.java",
+      "DOCUMENT docs/SPEC-i18n.md"
+    ],
+    "expectedLimitationsContain": [
+      "No execution log output was available"
+    ],
+    "answerability": "Answerable: the cited source, the test and the i18n spec section are all retrieved (the spec through the package prefix of the cited class)."
+  },
+  "usefulness": {
+    "maxConfidence": "HIGH",
+    "mustMention": [
+      [
+        "locale",
+        "pt-br",
+        "brazilian",
+        "comma",
+        "decimal separator",
+        "thousands"
+      ],
+      [
+        "BigDecimal",
+        "AmountParser",
+        "parse"
+      ]
+    ],
+    "causeMustNotMention": [],
+    "mustNotMention": [],
+    "mustDeclareLimitations": false,
+    "mustCiteRelatedDocument": true,
+    "manualChecks": [
+      "The proposed fix parses according to the importer's locale (for example with NumberFormat/DecimalFormat for the locale), not by stripping every comma and dot blindly."
+    ]
+  }
+}

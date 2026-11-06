@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.acme.export.notification.NotifierTest" tests="2" errors="1" skipped="0" failures="0">
+  <testcase name="legacyCustomerGetsTheEnglishSubject" classname="com.acme.export.notification.NotifierTest" time="0.003">
+    <error message="Cannot invoke &quot;String.toLowerCase()&quot; because the return value of &quot;com.acme.export.customer.Customer.language()&quot; is null" type="java.lang.NullPointerException"><![CDATA[java.lang.NullPointerException: Cannot invoke "String.toLowerCase()" because the return value of "com.acme.export.customer.Customer.language()" is null
+	at com.acme.export.notification.Notifier.subjectFor(Notifier.java:8)
+	at com.acme.export.notification.NotifierTest.legacyCustomerGetsTheEnglishSubject(NotifierTest.java:23)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+]]></error>
+  </testcase>
+  <testcase name="writesInPortugueseForPortugueseCustomers" classname="com.acme.export.notification.NotifierTest" time="0.006"/>
+</testsuite>

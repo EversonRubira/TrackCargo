@@ -1,0 +1,22 @@
+{
+  "probableCause": "Notifier.subjectFor calls customer.language().toLowerCase() but legacy customers have a null language, so it throws a NullPointerException before choosing the English default.",
+  "evidence": [
+    "NPE message: the return value of Customer.language() is null.",
+    "Notifier.java:8 dereferences language() without a null check.",
+    "The failing test creates the customer with a null language to model a legacy customer."
+  ],
+  "relatedDocuments": [],
+  "possibleSolutions": [
+    {
+      "solution": "Treat a null or blank language as the default (English) in Notifier.subjectFor.",
+      "tradeoffs": [
+        "Hides missing data; a data migration that fills the language would fix the source."
+      ]
+    }
+  ],
+  "confidence": "HIGH",
+  "confidenceReason": "The exception message and the test agree on the null value.",
+  "limitations": [
+    "No spec or ADR was provided for the notification package."
+  ]
+}

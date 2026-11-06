@@ -1,0 +1,23 @@
+{
+  "probableCause": "PortRouter.portFor returns HAMBURG for destination DE where the test expects ROTTERDAM. The routing decision lives in PortRouter, which was not provided, so the exact reason (a condition, configuration or flag that selects Rotterdam) cannot be confirmed.",
+  "evidence": [
+    "The assertion expected ROTTERDAM but got HAMBURG for the country DE.",
+    "The stack trace only contains the test frame, with no frame inside PortRouter."
+  ],
+  "relatedDocuments": [],
+  "possibleSolutions": [
+    {
+      "solution": "Read PortRouter.portFor and the test configuration to see which condition selects ROTTERDAM, then either set that condition in the test or fix the routing rule.",
+      "tradeoffs": [
+        "Needs the source that was not provided."
+      ]
+    }
+  ],
+  "confidence": "LOW",
+  "confidenceReason": "Only the assertion message and the test are available; the code that decides the port is missing.",
+  "limitations": [
+    "The implementation of PortRouter was not provided.",
+    "No log output and no documentation were available.",
+    "The test configuration (system properties, environment) is unknown."
+  ]
+}

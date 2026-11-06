@@ -1,0 +1,25 @@
+{
+  "probableCause": "ConsignmentService.cancel rejects BOOKED consignments because its guard compares with '>= Status.BOOKED'. The spec only forbids cancelling from LOADED onwards, so the comparison is off by one at the boundary.",
+  "evidence": [
+    "InvalidTransitionException 'Cannot cancel consignment C-101 in status BOOKED' is thrown at ConsignmentService.java:12.",
+    "The guard is 'consignment.status().ordinal() >= Status.BOOKED.ordinal()', which includes BOOKED.",
+    "docs/SPEC.md (Consignment lifecycle): a consignment can be cancelled while DRAFT or BOOKED, and not from LOADED onwards.",
+    "refusesToCancelALoadedConsignment passes, so only the boundary value BOOKED is wrong."
+  ],
+  "relatedDocuments": [
+    "docs/SPEC.md#Consignment lifecycle"
+  ],
+  "possibleSolutions": [
+    {
+      "solution": "Change the guard to a strict comparison: reject only when status.ordinal() > Status.BOOKED.ordinal().",
+      "tradeoffs": [
+        "Relies on the enum order; an explicit set of cancellable statuses would be clearer but is a bigger change."
+      ]
+    }
+  ],
+  "confidence": "HIGH",
+  "confidenceReason": "The stack trace, the guard code and the spec agree on the same boundary.",
+  "limitations": [
+    "No execution log was available; it is not needed for this failure."
+  ]
+}

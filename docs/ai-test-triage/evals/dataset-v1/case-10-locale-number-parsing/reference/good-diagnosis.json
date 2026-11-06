@@ -1,0 +1,24 @@
+{
+  "probableCause": "AmountParser.parse feeds the raw text \"1.234,50\" to new BigDecimal, which does not understand the pt-BR thousands and decimal separators. The parser has no locale handling, although docs/SPEC-i18n.md requires accepting the importer's format.",
+  "evidence": [
+    "NumberFormatException: Character , is not accepted by BigDecimal, thrown at AmountParser.java:9.",
+    "The failing input is \"1.234,50\", a Brazilian formatted amount.",
+    "docs/SPEC-i18n.md: pt-BR and es use dot for thousands and comma for decimals and must be accepted."
+  ],
+  "relatedDocuments": [
+    "docs/SPEC-i18n.md#Amount formats"
+  ],
+  "possibleSolutions": [
+    {
+      "solution": "Parse with the importer's Locale (DecimalFormat/NumberFormat with setParseBigDecimal(true)) and return the canonical BigDecimal.",
+      "tradeoffs": [
+        "The locale must be passed in from the company profile."
+      ]
+    }
+  ],
+  "confidence": "HIGH",
+  "confidenceReason": "The exception, the code and the spec point to the same cause.",
+  "limitations": [
+    "No execution log was available."
+  ]
+}
