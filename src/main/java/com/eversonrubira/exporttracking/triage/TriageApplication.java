@@ -2,7 +2,11 @@ package com.eversonrubira.exporttracking.triage;
 
 import com.eversonrubira.exporttracking.triage.config.TriageConfig;
 
+import java.io.FileDescriptor;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 
 /**
@@ -22,7 +26,7 @@ public final class TriageApplication {
     }
 
     public static void main(String[] args) {
-        PrintStream out = System.out;
+        PrintStream out = utf8(new FileOutputStream(FileDescriptor.out));
         try {
             Path file = Path.of(args.length > 0 ? args[0] : DEFAULT_CONFIG_FILE);
             TriageConfig config = TriageConfig.load(file, System.getProperties());
@@ -31,6 +35,15 @@ public final class TriageApplication {
             // Configuracao invalida nao pode esconder a falha original dos testes.
             out.println("AI TEST TRIAGE: skipped, invalid configuration: " + e.getMessage());
         }
+    }
+
+    /**
+     * Saida sempre em UTF-8. O stdout do Java segue a locale do sistema e, num runner com
+     * locale POSIX, acentos e outros caracteres sairiam como '?'. O diagnostico cita nomes e
+     * mensagens reais do projeto (pt/en), por isso a codificacao e fixada aqui.
+     */
+    static PrintStream utf8(OutputStream stream) {
+        return new PrintStream(stream, true, StandardCharsets.UTF_8);
     }
 
     /** Devolve sempre 0: o resultado do pipeline e decidido pelos testes. */

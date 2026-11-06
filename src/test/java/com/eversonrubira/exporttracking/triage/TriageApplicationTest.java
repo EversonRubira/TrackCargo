@@ -31,4 +31,15 @@ class TriageApplicationTest {
         assertEquals(0, exit);
         assertTrue(buffer.toString(StandardCharsets.UTF_8).contains("AI TEST TRIAGE"));
     }
+
+    // T09: o stdout do Java segue a locale do sistema; o triage fixa UTF-8 para nao trocar acentos por '?'.
+    @Test
+    void outputIsEncodedAsUtf8RegardlessOfTheSystemLocale() {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        PrintStream out = TriageApplication.utf8(buffer);
+        out.print("validação → estado inválido ✓");
+        out.flush();
+        assertEquals("validação → estado inválido ✓", buffer.toString(StandardCharsets.UTF_8));
+        assertEquals("validação → estado inválido ✓".getBytes(StandardCharsets.UTF_8).length, buffer.size());
+    }
 }
