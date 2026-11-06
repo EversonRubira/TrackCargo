@@ -21,19 +21,19 @@ import java.util.concurrent.Executors;
  * Claude real. Responde por guiao: a n-esima chamada recebe a n-esima resposta e a
  * ultima repete-se. Guarda o que recebeu para os testes inspecionarem.
  */
-final class FakeProvider implements AutoCloseable {
+public final class FakeProvider implements AutoCloseable {
 
-    record Reply(int status, String body, long delayMillis) {
+    public record Reply(int status, String body, long delayMillis) {
     }
 
-    record Seen(String method, String path, Map<String, String> headers, String body) {
+    public record Seen(String method, String path, Map<String, String> headers, String body) {
     }
 
     private final HttpServer server;
     private final List<Reply> script;
     private final List<Seen> seen = new CopyOnWriteArrayList<>();
 
-    FakeProvider(Reply... script) throws IOException {
+    public FakeProvider(Reply... script) throws IOException {
         this.script = List.of(script);
         this.server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         this.server.setExecutor(Executors.newCachedThreadPool());
@@ -41,15 +41,15 @@ final class FakeProvider implements AutoCloseable {
         this.server.start();
     }
 
-    String baseUrl() {
+    public String baseUrl() {
         return "http://localhost:" + server.getAddress().getPort();
     }
 
-    List<Seen> seen() {
+    public List<Seen> seen() {
         return seen;
     }
 
-    int hits() {
+    public int hits() {
         return seen.size();
     }
 
@@ -86,24 +86,24 @@ final class FakeProvider implements AutoCloseable {
 
     // ---- respostas prontas ----
 
-    static Reply ok(String assistantText) {
+    public static Reply ok(String assistantText) {
         return new Reply(200, envelope(assistantText, "end_turn"), 0);
     }
 
-    static Reply okCut(String assistantText) {
+    public static Reply okCut(String assistantText) {
         return new Reply(200, envelope(assistantText, "max_tokens"), 0);
     }
 
-    static Reply status(int status, String body) {
+    public static Reply status(int status, String body) {
         return new Reply(status, body, 0);
     }
 
-    static Reply slow(long delayMillis, String assistantText) {
+    public static Reply slow(long delayMillis, String assistantText) {
         return new Reply(200, envelope(assistantText, "end_turn"), delayMillis);
     }
 
     /** Envelope da Messages API: content[] com blocos de texto, usage e stop_reason. */
-    static String envelope(String assistantText, String stopReason) {
+    public static String envelope(String assistantText, String stopReason) {
         Map<String, Object> block = new LinkedHashMap<>();
         block.put("type", "text");
         block.put("text", assistantText);

@@ -1,6 +1,8 @@
 package com.eversonrubira.exporttracking.triage;
 
 import com.eversonrubira.exporttracking.triage.config.TriageConfig;
+import com.eversonrubira.exporttracking.triage.rendering.SafeText;
+import com.eversonrubira.exporttracking.triage.security.SecretFilter;
 
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
@@ -8,6 +10,7 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Map;
 
 /**
  * Ponto de entrada do AI Test Triage. Java simples, sem Spring: corre no CI
@@ -16,7 +19,7 @@ import java.nio.file.Path;
  * Regra de ouro (RF-08, ADR-003): o triage nunca altera o resultado dos testes.
  * Por isso {@link #run} devolve sempre 0 e main nunca termina com erro.
  *
- * T01: esqueleto. Ainda nao existe pipeline nem chamada ao Claude.
+ * O trabalho esta em {@link TriagePipeline}; aqui ficam so a configuracao e a saida UTF-8.
  */
 public final class TriageApplication {
 
@@ -30,10 +33,12 @@ public final class TriageApplication {
         try {
             Path file = Path.of(args.length > 0 ? args[0] : DEFAULT_CONFIG_FILE);
             TriageConfig config = TriageConfig.load(file, System.getProperties());
-            run(config, out);
+            run(config, System.getenv(), out);
         } catch (RuntimeException e) {
             // Configuracao invalida nao pode esconder a falha original dos testes.
-            out.println("AI TEST TRIAGE: skipped, invalid configuration: " + e.getMessage());
+            // A mensagem pode repetir o valor configurado: passa pela mesma limpeza do resto da saida.
+            String message = new SafeText(SecretFilter.fromSystemEnvironment()).clean(e.getMessage()).replace('\n', ' ');
+            out.println("AI TEST TRIAGE: skipped, invalid configuration: " + message);
         }
     }
 
@@ -47,12 +52,7 @@ public final class TriageApplication {
     }
 
     /** Devolve sempre 0: o resultado do pipeline e decidido pelos testes. */
-    public static int run(TriageConfig config, PrintStream out) {
-        if (!config.enabled()) {
-            out.println("AI TEST TRIAGE: disabled (triage.enabled=false)");
-            return 0;
-        }
-        out.println("AI TEST TRIAGE: enabled, pipeline not wired yet");
-        return 0;
+    public static int run(TriageConfig config, Map<String, String> environment, PrintStream out) {
+        return new TriagePipeline(config, environment, out).run();
     }
 }
