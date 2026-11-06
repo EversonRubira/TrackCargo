@@ -90,6 +90,11 @@ public final class SecretFilter {
         return result;
     }
 
+    /** Unico caminho para obter um {@link SanitizedContext}, o unico tipo que o provider aceita. */
+    public SanitizedContext sanitize(ContextPackage pkg) {
+        return new SanitizedContext(mask(pkg));
+    }
+
     public ContextPackage mask(ContextPackage pkg) {
         FailureInput f = pkg.failure();
         FailureInput maskedFailure = new FailureInput(
