@@ -30,10 +30,10 @@ public final class TriageRenderer {
     static final String PREFIX = "| ";
     private static final String RULE = "=".repeat(20);
 
-    private final SecretFilter filter;
+    private final SafeText text;
 
     public TriageRenderer(SecretFilter filter) {
-        this.filter = filter;
+        this.text = new SafeText(filter);
     }
 
     public String success(String testId, Diagnosis d) {
@@ -89,6 +89,35 @@ public final class TriageRenderer {
         return out.text();
     }
 
+    /** Resumo T11: quantas falhas havia, quantas se analisam e quais ficam de fora pelo limite da V1. */
+    public String overview(int total, int analyzed, int limit, List<String> skippedTestIds, List<String> warnings) {
+        Lines out = new Lines();
+        out.header();
+        out.line("", "Failed tests found: " + total);
+        out.line("", "Analyzed: " + analyzed + " (V1 limit: " + limit + " distinct failed tests per pipeline)");
+        out.line("", "Skipped: " + skippedTestIds.size() + (skippedTestIds.isEmpty() ? "" : " (not analyzed because of the V1 limit)"));
+        for (String id : skippedTestIds) {
+            out.line("  ", "- " + id);
+        }
+        for (String warning : warnings) {
+            out.line("", "Warning: " + warning);
+        }
+        out.footer();
+        return out.text();
+    }
+
+    public String noFailures(String reportsDir, List<String> warnings) {
+        Lines out = new Lines();
+        out.header();
+        out.line("", "No failed tests were found in the test reports (" + reportsDir + "); nothing to analyze.");
+        out.line("", "The test step result is unchanged.");
+        for (String warning : warnings) {
+            out.line("", "Warning: " + warning);
+        }
+        out.footer();
+        return out.text();
+    }
+
     static String operationalReason(FailureReason reason) {
         return switch (reason) {
             case PROVIDER_ERROR -> "The AI provider returned an error or could not be reached.";
@@ -99,34 +128,6 @@ public final class TriageRenderer {
             case REQUEST_REJECTED -> "The AI provider rejected the request.";
             case INTERRUPTED -> "The triage was interrupted.";
         };
-    }
-
-    /** Remove controlo/invisiveis, normaliza quebras de linha e mascara segredos. */
-    String clean(String text) {
-        String value = text == null ? "" : text;
-        StringBuilder sb = new StringBuilder(value.length());
-        int i = 0;
-        while (i < value.length()) {
-            int cp = value.codePointAt(i);
-            i += Character.charCount(cp);
-            if (cp == '\r') {
-                if (i < value.length() && value.charAt(i) == '\n') {
-                    i++;
-                }
-                sb.append('\n');
-            } else if (cp == '\n' || cp == 0x85 || cp == 0x2028 || cp == 0x2029) {
-                sb.append('\n');
-            } else if (cp == '\t') {
-                sb.append("  ");
-            } else {
-                int type = Character.getType(cp);
-                if (type != Character.CONTROL && type != Character.FORMAT && type != Character.UNASSIGNED
-                        && type != Character.SURROGATE && type != Character.PRIVATE_USE) {
-                    sb.appendCodePoint(cp);
-                }
-            }
-        }
-        return filter.mask(sb.toString());
     }
 
     private final class Lines {
@@ -144,8 +145,8 @@ public final class TriageRenderer {
             lines.add("|");
         }
 
-        void line(String indent, String text) {
-            for (String part : clean(text).split("\n", -1)) {
+        void line(String indent, String value) {
+            for (String part : text.clean(value).split("\n", -1)) {
                 lines.add((PREFIX + indent + part).stripTrailing());
             }
         }
