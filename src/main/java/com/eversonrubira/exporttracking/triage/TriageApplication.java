@@ -18,9 +18,6 @@ public final class TriageApplication {
 
     static final String DEFAULT_CONFIG_FILE = "docs/ai-test-triage/triage.properties";
 
-    // MUTACAO TEMPORARIA (nao fazer merge): viola o isolamento do triage.
-    static final Object VIOLACAO = com.eversonrubira.exporttracking.pedido.PedidoEstado.CRIADO;
-
     private TriageApplication() {
     }
 
