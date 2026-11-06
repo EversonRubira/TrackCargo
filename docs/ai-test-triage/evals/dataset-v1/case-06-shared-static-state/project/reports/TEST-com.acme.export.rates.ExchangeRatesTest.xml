@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.acme.export.rates.ExchangeRatesTest" tests="2" errors="0" skipped="0" failures="1">
+  <testcase name="overriddenRateIsUsed" classname="com.acme.export.rates.ExchangeRatesTest" time="0.006"/>
+  <testcase name="defaultRateForUsd" classname="com.acme.export.rates.ExchangeRatesTest" time="0.011">
+    <failure message="expected: &lt;0.90&gt; but was: &lt;1.10&gt;" type="org.opentest4j.AssertionFailedError"><![CDATA[org.opentest4j.AssertionFailedError: expected: <0.90> but was: <1.10>
+	at org.junit.jupiter.api.Assertions.notEqual(Assertions.java:11)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:14)
+	at com.acme.export.rates.ExchangeRatesTest.defaultRateForUsd(ExchangeRatesTest.java:20)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+]]></failure>
+  </testcase>
+</testsuite>

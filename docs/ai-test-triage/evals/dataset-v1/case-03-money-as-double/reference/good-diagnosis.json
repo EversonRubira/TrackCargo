@@ -1,0 +1,24 @@
+{
+  "probableCause": "Invoice computes the total with double arithmetic, so 0.10 + 0.10 + 0.10 yields 0.30000000000000004 instead of 0.30. ADR-004 requires BigDecimal or integer cents for money.",
+  "evidence": [
+    "Actual value 0.30000000000000004 is a binary floating-point artefact.",
+    "The test builds the invoice from double literals (0.10, 0.10, 0.10).",
+    "ADR-004: monetary amounts must not use float or double."
+  ],
+  "relatedDocuments": [
+    "docs/adr/ADR-004-money-representation.md"
+  ],
+  "possibleSolutions": [
+    {
+      "solution": "Store line amounts as BigDecimal with scale 2 (or long cents) and sum in that representation.",
+      "tradeoffs": [
+        "Changes the public signature of Invoice and its callers."
+      ]
+    }
+  ],
+  "confidence": "MEDIUM",
+  "confidenceReason": "The cause is clear from the value and the ADR, but Invoice.java was not provided, so the double usage is inferred from the test.",
+  "limitations": [
+    "Invoice.java was not part of the provided context."
+  ]
+}

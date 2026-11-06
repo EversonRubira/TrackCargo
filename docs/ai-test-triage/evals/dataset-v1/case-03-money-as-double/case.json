@@ -1,0 +1,58 @@
+{
+  "id": "case-03-money-as-double",
+  "title": "Invoice total drifts because amounts are doubles",
+  "difficulty": "EASY",
+  "categories": [
+    "NUMERIC_PRECISION",
+    "DOC_RELEVANT"
+  ],
+  "failedTest": "com.acme.export.invoice.InvoiceTest#totalOfThreeSmallLinesIsExact",
+  "presentedFailure": "AssertionFailedError: expected <0.3> but was <0.30000000000000004> in totalOfThreeSmallLinesIsExact. The single-line test passes.",
+  "knownRootCause": "Invoice stores and sums line amounts as double, and binary floating point cannot represent 0.10 exactly, so 0.10 + 0.10 + 0.10 is 0.30000000000000004. ADR-004 forbids float/double for money and requires BigDecimal (scale 2) or integer cents. The defect is in Invoice (production code), and the test is right to expect an exact total.",
+  "expectedEvidence": [
+    "The actual value 0.30000000000000004 is the classic double-precision artefact.",
+    "The test passes List.of(0.10, 0.10, 0.10): double literals.",
+    "docs/adr/ADR-004-money-representation.md forbids double for money and requires BigDecimal or cents.",
+    "The single-line test passes, so only the sum of several lines drifts."
+  ],
+  "relatedSpecs": [
+    "docs/adr/ADR-004-money-representation.md"
+  ],
+  "retrieval": {
+    "expectedArtifacts": [
+      "TEST_SOURCE src/test/java/com/acme/export/invoice/InvoiceTest.java",
+      "DOCUMENT docs/adr/ADR-004-money-representation.md"
+    ],
+    "expectedLimitationsContain": [
+      "No execution log output was available"
+    ],
+    "answerability": "Answerable but with a gap: Invoice.java is NOT retrieved (the stack cites only the test frame; the error message has no class name). The cause is inferable from the test source plus the ADR."
+  },
+  "usefulness": {
+    "maxConfidence": "HIGH",
+    "mustMention": [
+      [
+        "double",
+        "floating",
+        "binary"
+      ],
+      [
+        "invoice"
+      ],
+      [
+        "BigDecimal",
+        "cents",
+        "exact",
+        "precision"
+      ]
+    ],
+    "causeMustNotMention": [],
+    "mustNotMention": [],
+    "mustDeclareLimitations": false,
+    "mustCiteRelatedDocument": true,
+    "manualChecks": [
+      "The diagnosis does not propose loosening the assertion with a delta as the only fix, because ADR-004 requires exact decimal arithmetic.",
+      "If the diagnosis states HIGH, check that it does not claim to have seen Invoice.java (it was not provided)."
+    ]
+  }
+}

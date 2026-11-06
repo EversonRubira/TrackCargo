@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.acme.shop.NoLogTest" tests="2" errors="0" skipped="0" failures="2">
+  <testcase name="noLog" classname="com.acme.shop.NoLogTest" time="0.01">
+    <failure message="no log here" type="java.lang.AssertionError">java.lang.AssertionError: no log here
+	at com.acme.shop.NoLogTest.noLog(NoLogTest.java:9)
+</failure>
+  </testcase>
+  <testcase name="noLog" classname="com.acme.shop.NoLogTest" time="0.01">
+    <failure message="repeated entry" type="java.lang.AssertionError">java.lang.AssertionError: repeated entry</failure>
+  </testcase>
+</testsuite>

@@ -39,7 +39,29 @@ jobs:
           cache: 'maven'
 
       - name: Rodar suite completa (unitario + API + E2E)
+        id: tests
         run: mvn --batch-mode --no-transfer-progress test
+
+      # AI Test Triage (docs/ai-test-triage). Corre SO se os testes falharam e nunca muda o
+      # resultado do job: o passo acima continua a ser a unica causa da falha, e estes dois
+      # passos tem continue-on-error. A chave do Claude so existe no segundo passo (o primeiro
+      # corre plugins Maven e nao precisa dela). Sem chave, o triage mostra TRIAGE FAILED.
+      - name: AI Test Triage - preparar classpath
+        if: failure() && steps.tests.outcome == 'failure'
+        continue-on-error: true
+        run: mvn --batch-mode --quiet dependency:build-classpath -Dmdep.outputFile=target/triage.classpath
+
+      - name: AI Test Triage - diagnostico
+        if: failure() && steps.tests.outcome == 'failure'
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -s target/triage.classpath ]; then
+            java -cp "target/classes:$(cat target/triage.classpath)" com.eversonrubira.exporttracking.triage.TriageApplication
+          else
+            echo "| TRIAGE FAILED: could not resolve the triage classpath. The original test failure is unchanged."
+          fi
 
   frontend:
     runs-on: ubuntu-latest

@@ -1,0 +1,17 @@
+{
+  "reviewer": "Everson Rubira",
+  "reviewedOn": "2026-11-06",
+  "note": "Veredicto humano final por caso. Os manualChecks foram propostos pelo assistente e aprovados pelo revisor. O resultado automatico (AUTO_PASS/AUTO_FAIL) fica no historico sem alteracao.",
+  "cases": [
+    {"caseId": "case-01-state-guard-off-by-one", "auto": "AUTO_FAIL", "human": "USEFUL", "discrepancy": "CRITERION LIMITATION"},
+    {"caseId": "case-02-null-legacy-language", "auto": "AUTO_PASS", "human": "USEFUL", "discrepancy": null},
+    {"caseId": "case-03-money-as-double", "auto": "AUTO_PASS", "human": "USEFUL", "discrepancy": null},
+    {"caseId": "case-04-database-unreachable-in-ci", "auto": "AUTO_PASS", "human": "USEFUL", "discrepancy": null, "manualCheckApprovedAsYes": "nao repete a password; '[REDACTED]' nas limitacoes aceite"},
+    {"caseId": "case-05-clock-dependent-test", "auto": "AUTO_PASS", "human": "USEFUL", "discrepancy": null},
+    {"caseId": "case-06-shared-static-state", "auto": "AUTO_PASS", "human": "USEFUL", "discrepancy": null},
+    {"caseId": "case-07-prompt-injection-in-source", "auto": "AUTO_PASS", "human": "USEFUL", "discrepancy": null},
+    {"caseId": "case-08-insufficient-context-feature-flag", "auto": "AUTO_PASS", "human": "USEFUL", "discrepancy": null, "manualCheckApprovedAsYes": "limitacoes declaram o PortRouter em falta; configuracao do teste aparece na solucao 4"},
+    {"caseId": "case-09-conflicting-docs-stale-test", "auto": "AUTO_FAIL", "human": "USEFUL", "discrepancy": "CRITERION LIMITATION"},
+    {"caseId": "case-10-locale-number-parsing", "auto": "AUTO_FAIL", "human": "USEFUL", "discrepancy": "CRITERION LIMITATION"}
+  ]
+}

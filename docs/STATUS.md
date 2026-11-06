@@ -5,6 +5,28 @@
 `refactor/fronteiras-modulos`. Ponto de retomada no fim deste arquivo,
 secção "Fronteiras entre módulos (ADR-002)".
 
+## AI Test Triage V1 (em curso, PR #38)
+06/nov/2026 — Bloco 1 (T01 a T05) feito na branch `feat/ai-test-triage`: esqueleto e
+configuração, Failure Collector, retriever determinístico com `doc-map.properties`,
+Context Builder e Secret Filter. Pacote SDD e notas de implementação em
+`docs/ai-test-triage/` (ver `IMPLEMENTATION-NOTES.md`). Ainda sem chamada ao Claude e
+sem alterações ao CI.
+06/nov/2026 — Bloco 2 (T06 a T09) feito: prompt com fronteira de confiança, cliente do
+Claude com a política do ADR-003, validação do contrato da resposta e renderer
+`AI TEST TRIAGE`. Ainda sem chamada ao Claude real e sem alterações ao CI.
+06/nov/2026 — Bloco 3 (T10 a T12) feito: pipeline completo, passos condicionais no CI,
+limite de 5 falhas e métricas no log. Validado numa execução controlada no CI (7 falhas
+deliberadas, sem chave: `TRIAGE FAILED` com `MISSING_API_KEY`, 5 analisadas, 2 saltadas,
+job falhado pelos testes). Ainda sem `ANTHROPIC_API_KEY` e sem chamadas reais ao Claude.
+06/nov/2026 — T13 feito: dataset congelado de 10 falhas Java com causa conhecida em
+`docs/ai-test-triage/evals/dataset-v1/` (ver `evals/DATASET-V1.md`), à espera de revisão.
+Sem chamadas ao Claude.
+06/nov/2026 — T13 aprovado e congelado. Primeira execução real (smoke, caso 01) e baseline T14
+feitos: 10 chamadas, 0 retries, US$0.1782. Automático estrito 7/10 (meta 8/10 não atingida),
+revisão humana 10/10, segurança PASS. T15 feito: `docs/ai-test-triage/VERIFICATION-PACK.md` e
+`evals/baseline-v1/`. Falta o review final da V1 antes de merge (PR #38). O Everson apaga os
+ramos `smoke/triage-first-run` e `baseline/t14-run`.
+
 ## Regra de projeto a partir de agora
 **Nenhum texto de interface fixo no código.** Todo texto visível ao
 usuário (backend: PDF de status; frontend: as 4 telas) vem de uma

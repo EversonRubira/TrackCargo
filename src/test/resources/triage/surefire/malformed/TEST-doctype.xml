@@ -1,0 +1,3 @@
+<?xml version="1.0"?>
+<!DOCTYPE testsuite [<!ENTITY injected "from-a-doctype">]>
+<testsuite name="com.acme.shop.DoctypeTest"><testcase name="a" classname="com.acme.shop.DoctypeTest"><failure message="&injected;" type="t"/></testcase></testsuite>

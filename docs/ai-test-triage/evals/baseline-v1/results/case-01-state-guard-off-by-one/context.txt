@@ -1,0 +1,90 @@
+=== FAILURE ===
+test: com.acme.export.consignment.ConsignmentServiceTest#cancelsABookedConsignment
+errorType: com.acme.export.consignment.InvalidTransitionException
+errorMessage: Cannot cancel consignment C-101 in status BOOKED
+--- stackTrace ---
+com.acme.export.consignment.InvalidTransitionException: Cannot cancel consignment C-101 in status BOOKED
+	at com.acme.export.consignment.ConsignmentService.cancel(ConsignmentService.java:12)
+	at com.acme.export.consignment.ConsignmentServiceTest.cancelsABookedConsignment(ConsignmentServiceTest.java:25)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+--- logExcerpt ---
+
+=== CONTEXT ARTIFACTS (4) ===
+--- [TEST_SOURCE] src/test/java/com/acme/export/consignment/ConsignmentServiceTest.java | failed test class (whole file) ---
+   1: package com.acme.export.consignment;
+   2: 
+   3: import org.junit.jupiter.api.Test;
+   4: 
+   5: import static org.junit.jupiter.api.Assertions.assertThrows;
+   6: import static org.junit.jupiter.api.Assertions.assertTrue;
+   7: 
+   8: class ConsignmentServiceTest {
+   9: 
+  10:     private final ConsignmentService service = new ConsignmentService();
+  11: 
+  12:     @Test
+  13:     void cancelsADraftConsignment() {
+  14:         Consignment consignment = new Consignment("C-100", Status.DRAFT);
+  15: 
+  16:         service.cancel(consignment);
+  17: 
+  18:         assertTrue(consignment.cancelled());
+  19:     }
+  20: 
+  21:     @Test
+  22:     void cancelsABookedConsignment() {
+  23:         Consignment consignment = new Consignment("C-101", Status.BOOKED);
+  24: 
+  25:         service.cancel(consignment);
+  26: 
+  27:         assertTrue(consignment.cancelled());
+  28:     }
+  29: 
+  30:     @Test
+  31:     void refusesToCancelALoadedConsignment() {
+  32:         Consignment consignment = new Consignment("C-102", Status.LOADED);
+  33: 
+  34:         assertThrows(InvalidTransitionException.class, () -> service.cancel(consignment));
+  35:     }
+  36: }
+
+--- [CITED_SOURCE] src/main/java/com/acme/export/consignment/ConsignmentService.java | class cited in the stack trace (whole file) ---
+   1: package com.acme.export.consignment;
+   2: 
+   3: public class ConsignmentService {
+   4: 
+   5:     /** Cancela uma carga. So e permitido antes de a carga ser carregada. */
+   6:     public void cancel(Consignment consignment) {
+   7:         if (consignment.cancelled()) {
+   8:             return;
+   9:         }
+  10:         if (consignment.status().ordinal() >= Status.BOOKED.ordinal()) {
+  11:             throw new InvalidTransitionException("Cannot cancel consignment " + consignment.id()
+  12:                     + " in status " + consignment.status());
+  13:         }
+  14:         consignment.markCancelled();
+  15:     }
+  16: }
+
+--- [RELATED_SOURCE] src/main/java/com/acme/export/consignment/InvalidTransitionException.java | exception type of the failure (whole file) ---
+   1: package com.acme.export.consignment;
+   2: 
+   3: public class InvalidTransitionException extends RuntimeException {
+   4: 
+   5:     public InvalidTransitionException(String message) {
+   6:         super(message);
+   7:     }
+   8: }
+
+--- [DOCUMENT] docs/SPEC.md | section 'Consignment lifecycle' mapped in the document map ---
+## Consignment lifecycle
+
+A consignment moves through DRAFT, BOOKED, LOADED, SHIPPED and DELIVERED, in this order.
+
+Cancellation rule: a consignment can be cancelled while it is DRAFT or BOOKED. From LOADED onwards
+it can no longer be cancelled, because the cargo is already physically in the container.
+Cancelling an already cancelled consignment does nothing.
+
+=== LIMITATIONS (1) ===
+- No execution log output was available for this test.

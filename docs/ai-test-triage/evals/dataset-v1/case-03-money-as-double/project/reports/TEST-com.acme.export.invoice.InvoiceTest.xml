@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.acme.export.invoice.InvoiceTest" tests="2" errors="0" skipped="0" failures="1">
+  <testcase name="totalOfThreeSmallLinesIsExact" classname="com.acme.export.invoice.InvoiceTest" time="0.013">
+    <failure message="expected: &lt;0.3&gt; but was: &lt;0.30000000000000004&gt;" type="org.opentest4j.AssertionFailedError"><![CDATA[org.opentest4j.AssertionFailedError: expected: <0.3> but was: <0.30000000000000004>
+	at org.junit.jupiter.api.Assertions.notEqual(Assertions.java:11)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:19)
+	at com.acme.export.invoice.InvoiceTest.totalOfThreeSmallLinesIsExact(InvoiceTest.java:22)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+]]></failure>
+  </testcase>
+  <testcase name="totalOfASingleLineIsThatLine" classname="com.acme.export.invoice.InvoiceTest" time="0.000"/>
+</testsuite>

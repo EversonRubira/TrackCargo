@@ -1,0 +1,62 @@
+{
+  "id": "case-06-shared-static-state",
+  "title": "Test pollution through a shared static rate table",
+  "difficulty": "HARD",
+  "categories": [
+    "TEST_ISOLATION",
+    "DOC_ABSENT",
+    "NO_HIGH_CONFIDENCE"
+  ],
+  "failedTest": "com.acme.export.rates.ExchangeRatesTest#defaultRateForUsd",
+  "presentedFailure": "AssertionFailedError: expected <0.90> but was <1.10> in defaultRateForUsd. The failing value is exactly the one set by the other test of the class. Run alone, defaultRateForUsd passes.",
+  "knownRootCause": "Test pollution: ExchangeRates keeps the rates in a static mutable map. overriddenRateIsUsed sets USD to 1.10 and nothing restores it, so defaultRateForUsd, which ran afterwards, sees 1.10. The result depends on test order. The production class is not wrong per se; the tests share global state with no reset.",
+  "expectedEvidence": [
+    "The 'wrong' actual value 1.10 appears in the source of the other test (overriddenRateIsUsed), not in the production defaults.",
+    "Neither test resets the rate (no @BeforeEach/@AfterEach).",
+    "ExchangeRates is a static singleton-like class (not retrieved; inferable because the tests call static methods).",
+    "The report alone does not show execution order, so the order dependence is an inference."
+  ],
+  "relatedSpecs": [],
+  "retrieval": {
+    "expectedArtifacts": [
+      "TEST_SOURCE src/test/java/com/acme/export/rates/ExchangeRatesTest.java"
+    ],
+    "expectedLimitationsContain": [
+      "No spec or ADR is mapped to com.acme.export.rates.ExchangeRatesTest"
+    ],
+    "answerability": "Answerable at MEDIUM: the test source contains both tests and the 1.10 value. ExchangeRates.java is NOT retrieved. The execution order is not in the context, so HIGH would overstate the evidence."
+  },
+  "usefulness": {
+    "maxConfidence": "MEDIUM",
+    "mustMention": [
+      [
+        "static",
+        "shared state",
+        "shared",
+        "global"
+      ],
+      [
+        "overriddenRateIsUsed",
+        "override",
+        "1.10"
+      ],
+      [
+        "order",
+        "pollut",
+        "isolat",
+        "reset",
+        "leak",
+        "other test",
+        "restore"
+      ]
+    ],
+    "causeMustNotMention": [],
+    "mustNotMention": [],
+    "mustDeclareLimitations": false,
+    "mustCiteRelatedDocument": false,
+    "manualChecks": [
+      "The diagnosis does not propose changing the expected default value 0.90.",
+      "The diagnosis acknowledges that the run order is inferred, not observed."
+    ]
+  }
+}

@@ -1,0 +1,81 @@
+=== FAILURE ===
+test: com.acme.export.notification.NotifierTest#legacyCustomerGetsTheEnglishSubject
+errorType: java.lang.NullPointerException
+errorMessage: Cannot invoke "String.toLowerCase()" because the return value of "com.acme.export.customer.Customer.language()" is null
+--- stackTrace ---
+java.lang.NullPointerException: Cannot invoke "String.toLowerCase()" because the return value of "com.acme.export.customer.Customer.language()" is null
+	at com.acme.export.notification.Notifier.subjectFor(Notifier.java:8)
+	at com.acme.export.notification.NotifierTest.legacyCustomerGetsTheEnglishSubject(NotifierTest.java:23)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+--- logExcerpt ---
+
+=== CONTEXT ARTIFACTS (3) ===
+--- [TEST_SOURCE] src/test/java/com/acme/export/notification/NotifierTest.java | failed test class (whole file) ---
+   1: package com.acme.export.notification;
+   2: 
+   3: import com.acme.export.customer.Customer;
+   4: import org.junit.jupiter.api.Test;
+   5: 
+   6: import static org.junit.jupiter.api.Assertions.assertEquals;
+   7: 
+   8: class NotifierTest {
+   9: 
+  10:     private final Notifier notifier = new Notifier();
+  11: 
+  12:     @Test
+  13:     void writesInPortugueseForPortugueseCustomers() {
+  14:         Customer customer = new Customer("Atlantic Foods", "pt-BR");
+  15: 
+  16:         assertEquals("Documento disponivel: invoice", notifier.subjectFor(customer, "invoice"));
+  17:     }
+  18: 
+  19:     @Test
+  20:     void legacyCustomerGetsTheEnglishSubject() {
+  21:         Customer legacyCustomer = new Customer("Old Harbour Ltd", null);
+  22: 
+  23:         assertEquals("Document available: invoice", notifier.subjectFor(legacyCustomer, "invoice"));
+  24:     }
+  25: }
+
+--- [CITED_SOURCE] src/main/java/com/acme/export/notification/Notifier.java | class cited in the stack trace (whole file) ---
+   1: package com.acme.export.notification;
+   2: 
+   3: import com.acme.export.customer.Customer;
+   4: 
+   5: public class Notifier {
+   6: 
+   7:     public String subjectFor(Customer customer, String documentName) {
+   8:         if (customer.language().toLowerCase().startsWith("pt")) {
+   9:             return "Documento disponivel: " + documentName;
+  10:         }
+  11:         return "Document available: " + documentName;
+  12:     }
+  13: }
+
+--- [RELATED_SOURCE] src/main/java/com/acme/export/customer/Customer.java | class name 'Customer' mentioned in the error message (whole file) ---
+   1: package com.acme.export.customer;
+   2: 
+   3: /** Cliente importador. Clientes antigos foram migrados sem idioma preferido. */
+   4: public class Customer {
+   5: 
+   6:     private final String name;
+   7:     private final String language;
+   8: 
+   9:     public Customer(String name, String language) {
+  10:         this.name = name;
+  11:         this.language = language;
+  12:     }
+  13: 
+  14:     public String name() {
+  15:         return name;
+  16:     }
+  17: 
+  18:     public String language() {
+  19:         return language;
+  20:     }
+  21: }
+
+=== LIMITATIONS (2) ===
+- No execution log output was available for this test.
+- No spec or ADR is mapped to com.acme.export.notification.NotifierTest or to the classes cited in the stack trace; related documentation may exist but was not found.

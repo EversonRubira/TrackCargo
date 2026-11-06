@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.acme.export.promotion.PromotionTest" tests="2" errors="0" skipped="0" failures="1">
+  <testcase name="autumnPromotionIsStillActive" classname="com.acme.export.promotion.PromotionTest" time="0.037">
+    <failure message="expected: &lt;true&gt; but was: &lt;false&gt;" type="org.opentest4j.AssertionFailedError"><![CDATA[org.opentest4j.AssertionFailedError: expected: <true> but was: <false>
+	at org.junit.jupiter.api.Assertions.notEqual(Assertions.java:11)
+	at org.junit.jupiter.api.Assertions.assertTrue(Assertions.java:21)
+	at com.acme.export.promotion.PromotionTest.autumnPromotionIsStillActive(PromotionTest.java:23)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+]]></failure>
+  </testcase>
+  <testcase name="promotionFromThePastIsNotActive" classname="com.acme.export.promotion.PromotionTest" time="0.000"/>
+</testsuite>

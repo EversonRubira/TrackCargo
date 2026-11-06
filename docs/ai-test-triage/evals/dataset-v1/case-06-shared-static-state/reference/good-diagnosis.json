@@ -1,0 +1,23 @@
+{
+  "probableCause": "Shared mutable state between tests: overriddenRateIsUsed sets the USD rate to 1.10 and nothing restores it, so defaultRateForUsd sees 1.10 when it runs after it. The failure depends on test order.",
+  "evidence": [
+    "The actual value 1.10 is exactly what overriddenRateIsUsed writes with ExchangeRates.override.",
+    "Neither test resets the rate after use.",
+    "ExchangeRates is used through static methods, so its state is shared across tests."
+  ],
+  "relatedDocuments": [],
+  "possibleSolutions": [
+    {
+      "solution": "Restore the original rate in an @AfterEach (or add a reset method to ExchangeRates) so each test starts from the default.",
+      "tradeoffs": [
+        "A test-only reset method widens the production API."
+      ]
+    }
+  ],
+  "confidence": "MEDIUM",
+  "confidenceReason": "The source of the polluting value is visible, but the execution order is not in the report and ExchangeRates.java was not provided.",
+  "limitations": [
+    "The test execution order is not shown.",
+    "ExchangeRates.java was not provided."
+  ]
+}

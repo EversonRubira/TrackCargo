@@ -1,0 +1,63 @@
+{
+  "id": "case-09-conflicting-docs-stale-test",
+  "title": "Test follows an outdated spec, code follows the newer ADR",
+  "difficulty": "MEDIUM",
+  "categories": [
+    "STALE_TEST",
+    "CONFLICTING_DOCS",
+    "DOC_RELEVANT"
+  ],
+  "failedTest": "com.acme.export.storage.StoragePolicyTest#freeStorageLasts7Days",
+  "presentedFailure": "AssertionFailedError: expected <7> but was <10> in freeStorageLasts7Days. The two retrieved documents disagree: docs/SPEC.md says 7 days, ADR-007 says 10 days and states that it supersedes the SPEC.",
+  "knownRootCause": "The production value (10 days) follows ADR-007, which supersedes the 7 days still written in the 'Storage fees' section of docs/SPEC.md. The test encodes the outdated value. The correct fix is to update the test (and the SPEC), not to change the code back to 7.",
+  "expectedEvidence": [
+    "The actual value 10 matches ADR-007 ('The free storage period ... is 10 days').",
+    "ADR-007 status: Accepted, supersedes the 7 days of the SPEC, which 'has not been updated yet'.",
+    "docs/SPEC.md 'Storage fees' still says 7 days, so the two documents conflict.",
+    "The sibling test storageBeyondTheFreePeriodIsCharged (11 days charged) passes, consistent with 10."
+  ],
+  "relatedSpecs": [
+    "docs/SPEC.md#Storage fees",
+    "docs/adr/ADR-007-free-storage-days.md"
+  ],
+  "retrieval": {
+    "expectedArtifacts": [
+      "TEST_SOURCE src/test/java/com/acme/export/storage/StoragePolicyTest.java",
+      "DOCUMENT docs/SPEC.md",
+      "DOCUMENT docs/adr/ADR-007-free-storage-days.md"
+    ],
+    "expectedLimitationsContain": [
+      "No execution log output was available"
+    ],
+    "answerability": "Answerable: both documents are retrieved. StoragePolicy.java is NOT retrieved, but the actual value 10 and ADR-007 are enough."
+  },
+  "usefulness": {
+    "maxConfidence": "HIGH",
+    "mustMention": [
+      [
+        "ADR-007"
+      ],
+      [
+        "supersede",
+        "outdated",
+        "stale",
+        "conflict",
+        "contradict",
+        "newer",
+        "not been updated",
+        "out of date"
+      ],
+      [
+        "test"
+      ]
+    ],
+    "causeMustNotMention": [],
+    "mustNotMention": [],
+    "mustDeclareLimitations": false,
+    "mustCiteRelatedDocument": true,
+    "manualChecks": [
+      "The diagnosis names the conflict between docs/SPEC.md and ADR-007 and says which one prevails.",
+      "The proposed fix updates the test (and the SPEC) and does not change the production value back to 7."
+    ]
+  }
+}

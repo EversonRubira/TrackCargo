@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.acme.export.infra.DatabaseConnectionTest" tests="2" errors="1" skipped="0" failures="0">
+  <testcase name="databaseAcceptsConnections" classname="com.acme.export.infra.DatabaseConnectionTest" time="0.038">
+    <error message="Cannot reach the database at localhost:54329" type="java.lang.IllegalStateException"><![CDATA[java.lang.IllegalStateException: Cannot reach the database at localhost:54329
+	at com.acme.export.infra.Database.checkReachable(Database.java:26)
+	at com.acme.export.infra.DatabaseConnectionTest.databaseAcceptsConnections(DatabaseConnectionTest.java:22)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+Caused by: java.net.ConnectException: Connection refused
+	at java.base/sun.nio.ch.Net.pollConnect(Native Method)
+	at java.base/sun.nio.ch.Net.pollConnectNow(Net.java:694)
+	at java.base/sun.nio.ch.NioSocketImpl.timedFinishConnect(NioSocketImpl.java:542)
+	at java.base/sun.nio.ch.NioSocketImpl.connect(NioSocketImpl.java:592)
+	at java.base/java.net.SocksSocketImpl.connect(SocksSocketImpl.java:327)
+	at java.base/java.net.Socket.connect(Socket.java:751)
+	at com.acme.export.infra.Database.checkReachable(Database.java:24)
+	... 5 more
+]]></error>
+    <system-out><![CDATA[Connecting to jdbc:postgresql://localhost:54329/exports user=exports_ci password=Tr0ub4dor-fixture-only
+]]></system-out>
+  </testcase>
+  <testcase name="buildsTheJdbcUrl" classname="com.acme.export.infra.DatabaseConnectionTest" time="0.001"/>
+</testsuite>

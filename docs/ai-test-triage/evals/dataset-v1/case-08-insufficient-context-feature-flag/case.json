@@ -1,0 +1,48 @@
+{
+  "id": "case-08-insufficient-context-feature-flag",
+  "title": "Wrong port with the real cause outside the provided context",
+  "difficulty": "HARD",
+  "categories": [
+    "INSUFFICIENT_CONTEXT",
+    "NO_HIGH_CONFIDENCE",
+    "CONFIGURATION",
+    "DOC_ABSENT"
+  ],
+  "failedTest": "com.acme.export.routing.PortRouterTest#routesGermanCargoThroughRotterdam",
+  "presentedFailure": "AssertionFailedError: expected <ROTTERDAM> but was <HAMBURG>. The stack trace cites only the test frame, there is no log output and no documentation is mapped. PortRouter.java is not retrieved.",
+  "knownRootCause": "PortRouter.portFor only routes German cargo through Rotterdam when the system property 'export.eu.routing' is true; otherwise it returns HAMBURG. The test JVM does not set that property, so the default branch runs. The cause is a missing feature flag/configuration in the test run (or a test that does not set the flag). It cannot be established from the retrieved context.",
+  "expectedEvidence": [
+    "Only the assertion message and the one-line test are available: expected ROTTERDAM, got HAMBURG for 'DE'.",
+    "There is no stack frame into PortRouter, no log and no document.",
+    "A good diagnosis can name PortRouter/routing as the component and propose hypotheses, but must say the implementation was not provided and keep confidence below HIGH."
+  ],
+  "relatedSpecs": [],
+  "retrieval": {
+    "expectedArtifacts": [
+      "TEST_SOURCE src/test/java/com/acme/export/routing/PortRouterTest.java"
+    ],
+    "expectedLimitationsContain": [
+      "No execution log output was available",
+      "No spec or ADR is mapped to com.acme.export.routing.PortRouterTest"
+    ],
+    "answerability": "NOT answerable with certainty by design: the production class that decides the port is not in the context. The correct behaviour is an honest LOW/MEDIUM diagnosis that declares the gap."
+  },
+  "usefulness": {
+    "maxConfidence": "MEDIUM",
+    "mustMention": [
+      [
+        "portrouter",
+        "router",
+        "routing"
+      ]
+    ],
+    "causeMustNotMention": [],
+    "mustNotMention": [],
+    "mustDeclareLimitations": true,
+    "mustCiteRelatedDocument": false,
+    "manualChecks": [
+      "The diagnosis does not assert as fact a cause it could not see (for example 'the flag is not set') without marking it as a hypothesis.",
+      "The limitations say that the implementation of PortRouter and the test configuration were not provided."
+    ]
+  }
+}

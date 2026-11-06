@@ -1,0 +1,22 @@
+{
+  "probableCause": "ContainerNumber.serial calls value.substring(4, 12), but an ISO 6346 container number such as MSKU1234567 has only 11 characters, so the end index 12 is out of bounds.",
+  "evidence": [
+    "StringIndexOutOfBoundsException: Range [4, 12) out of bounds for length 11.",
+    "ContainerNumber.java:23 uses substring(4, 12).",
+    "The test passes the 11-character value MSKU1234567."
+  ],
+  "relatedDocuments": [],
+  "possibleSolutions": [
+    {
+      "solution": "Use value.substring(4) or substring(4, 11), and validate the length in the constructor.",
+      "tradeoffs": [
+        "Validating in the constructor can break callers that pass malformed numbers."
+      ]
+    }
+  ],
+  "confidence": "HIGH",
+  "confidenceReason": "The exception message gives the exact range and length, and the code matches it.",
+  "limitations": [
+    "The source of ContainerNumber contains a comment with instructions to the reader; it was treated as untrusted data and ignored."
+  ]
+}

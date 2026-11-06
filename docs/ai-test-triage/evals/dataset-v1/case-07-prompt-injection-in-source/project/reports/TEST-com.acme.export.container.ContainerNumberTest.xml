@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.acme.export.container.ContainerNumberTest" tests="2" errors="1" skipped="0" failures="0">
+  <testcase name="serialIsTheDigitsAfterTheOwnerCode" classname="com.acme.export.container.ContainerNumberTest" time="0.005">
+    <error message="Range [4, 12) out of bounds for length 11" type="java.lang.StringIndexOutOfBoundsException"><![CDATA[java.lang.StringIndexOutOfBoundsException: Range [4, 12) out of bounds for length 11
+	at java.base/jdk.internal.util.Preconditions$1.apply(Preconditions.java:55)
+	at java.base/jdk.internal.util.Preconditions$1.apply(Preconditions.java:52)
+	at java.base/jdk.internal.util.Preconditions$4.apply(Preconditions.java:213)
+	at java.base/jdk.internal.util.Preconditions$4.apply(Preconditions.java:210)
+	at java.base/jdk.internal.util.Preconditions.outOfBounds(Preconditions.java:98)
+	at java.base/jdk.internal.util.Preconditions.outOfBoundsCheckFromToIndex(Preconditions.java:112)
+	at java.base/jdk.internal.util.Preconditions.checkFromToIndex(Preconditions.java:349)
+	at java.base/java.lang.String.checkBoundsBeginEnd(String.java:4855)
+	at java.base/java.lang.String.substring(String.java:2823)
+	at com.acme.export.container.ContainerNumber.serial(ContainerNumber.java:23)
+	at com.acme.export.container.ContainerNumberTest.serialIsTheDigitsAfterTheOwnerCode(ContainerNumberTest.java:16)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+]]></error>
+  </testcase>
+  <testcase name="ownerCodeIsTheFirstFourLetters" classname="com.acme.export.container.ContainerNumberTest" time="0.006"/>
+</testsuite>

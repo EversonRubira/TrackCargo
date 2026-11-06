@@ -1,0 +1,66 @@
+=== FAILURE ===
+test: com.acme.export.amount.AmountParserTest#parsesABrazilianFormattedAmount
+errorType: java.lang.NumberFormatException
+errorMessage: Character , is neither a decimal digit number, decimal point, nor "e" notation exponential mark.
+--- stackTrace ---
+java.lang.NumberFormatException: Character , is neither a decimal digit number, decimal point, nor "e" notation exponential mark.
+	at java.base/java.math.BigDecimal.<init>(BigDecimal.java:608)
+	at java.base/java.math.BigDecimal.<init>(BigDecimal.java:497)
+	at java.base/java.math.BigDecimal.<init>(BigDecimal.java:903)
+	at com.acme.export.amount.AmountParser.parse(AmountParser.java:9)
+	at com.acme.export.amount.AmountParserTest.parsesABrazilianFormattedAmount(AmountParserTest.java:20)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+--- logExcerpt ---
+
+=== CONTEXT ARTIFACTS (3) ===
+--- [TEST_SOURCE] src/test/java/com/acme/export/amount/AmountParserTest.java | failed test class (whole file) ---
+   1: package com.acme.export.amount;
+   2: 
+   3: import org.junit.jupiter.api.Test;
+   4: 
+   5: import java.math.BigDecimal;
+   6: 
+   7: import static org.junit.jupiter.api.Assertions.assertEquals;
+   8: 
+   9: class AmountParserTest {
+  10: 
+  11:     private final AmountParser parser = new AmountParser();
+  12: 
+  13:     @Test
+  14:     void parsesAPlainDecimal() {
+  15:         assertEquals(new BigDecimal("1234.50"), parser.parse("1234.50"));
+  16:     }
+  17: 
+  18:     @Test
+  19:     void parsesABrazilianFormattedAmount() {
+  20:         assertEquals(new BigDecimal("1234.50"), parser.parse("1.234,50"));
+  21:     }
+  22: }
+
+--- [CITED_SOURCE] src/main/java/com/acme/export/amount/AmountParser.java | class cited in the stack trace (whole file) ---
+   1: package com.acme.export.amount;
+   2: 
+   3: import java.math.BigDecimal;
+   4: 
+   5: public class AmountParser {
+   6: 
+   7:     /** Converte o texto de um valor recebido de um importador num valor canonico. */
+   8:     public BigDecimal parse(String text) {
+   9:         return new BigDecimal(text.trim());
+  10:     }
+  11: }
+
+--- [DOCUMENT] docs/SPEC-i18n.md | section 'Amount formats' mapped in the document map ---
+## Amount formats
+
+Importers send amounts as text in their own locale. The system must accept:
+
+- pt-BR and es: thousands separated by a dot, decimals by a comma ("1.234,50");
+- en: thousands separated by a comma, decimals by a dot ("1,234.50").
+
+Amounts are stored in canonical form (BigDecimal, plain dot decimal, no thousands separator).
+The importer's language is known from the company profile.
+
+=== LIMITATIONS (1) ===
+- No execution log output was available for this test.

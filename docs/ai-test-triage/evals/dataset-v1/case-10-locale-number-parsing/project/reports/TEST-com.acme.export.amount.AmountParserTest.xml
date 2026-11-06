@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.acme.export.amount.AmountParserTest" tests="2" errors="1" skipped="0" failures="0">
+  <testcase name="parsesAPlainDecimal" classname="com.acme.export.amount.AmountParserTest" time="0.006"/>
+  <testcase name="parsesABrazilianFormattedAmount" classname="com.acme.export.amount.AmountParserTest" time="0.001">
+    <error message="Character , is neither a decimal digit number, decimal point, nor &quot;e&quot; notation exponential mark." type="java.lang.NumberFormatException"><![CDATA[java.lang.NumberFormatException: Character , is neither a decimal digit number, decimal point, nor "e" notation exponential mark.
+	at java.base/java.math.BigDecimal.<init>(BigDecimal.java:608)
+	at java.base/java.math.BigDecimal.<init>(BigDecimal.java:497)
+	at java.base/java.math.BigDecimal.<init>(BigDecimal.java:903)
+	at com.acme.export.amount.AmountParser.parse(AmountParser.java:9)
+	at com.acme.export.amount.AmountParserTest.parsesABrazilianFormattedAmount(AmountParserTest.java:20)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+]]></error>
+  </testcase>
+</testsuite>

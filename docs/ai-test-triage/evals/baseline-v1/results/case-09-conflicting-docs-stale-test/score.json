@@ -1,0 +1,1 @@
+{"caseId":"case-09-conflicting-docs-stale-test","auto":"AUTO_FAIL","violations":["relatedDocuments cites a document that was not provided: docs/SPEC.md (section 'Storage fees', outdated per ADR-007)"]}

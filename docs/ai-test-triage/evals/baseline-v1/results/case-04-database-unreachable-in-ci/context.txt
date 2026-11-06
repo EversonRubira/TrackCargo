@@ -1,0 +1,81 @@
+=== FAILURE ===
+test: com.acme.export.infra.DatabaseConnectionTest#databaseAcceptsConnections
+errorType: java.lang.IllegalStateException
+errorMessage: Cannot reach the database at localhost:54329
+--- stackTrace ---
+java.lang.IllegalStateException: Cannot reach the database at localhost:54329
+	at com.acme.export.infra.Database.checkReachable(Database.java:26)
+	at com.acme.export.infra.DatabaseConnectionTest.databaseAcceptsConnections(DatabaseConnectionTest.java:22)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+Caused by: java.net.ConnectException: Connection refused
+	at java.base/sun.nio.ch.Net.pollConnect(Native Method)
+	at java.base/sun.nio.ch.Net.pollConnectNow(Net.java:694)
+	at java.base/sun.nio.ch.NioSocketImpl.timedFinishConnect(NioSocketImpl.java:542)
+	at java.base/sun.nio.ch.NioSocketImpl.connect(NioSocketImpl.java:592)
+	at java.base/java.net.SocksSocketImpl.connect(SocksSocketImpl.java:327)
+	at java.base/java.net.Socket.connect(Socket.java:751)
+	at com.acme.export.infra.Database.checkReachable(Database.java:24)
+	... 5 more
+--- logExcerpt ---
+Connecting to jdbc:postgresql://localhost:54329/exports user=exports_ci ***
+=== CONTEXT ARTIFACTS (2) ===
+--- [TEST_SOURCE] src/test/java/com/acme/export/infra/DatabaseConnectionTest.java | failed test class (whole file) ---
+   1: package com.acme.export.infra;
+   2: 
+   3: import org.junit.jupiter.api.Test;
+   4: 
+   5: import static org.junit.jupiter.api.Assertions.assertEquals;
+   6: 
+   7: class DatabaseConnectionTest {
+   8: 
+   9:     /** 54329 e a porta que o docker compose local publica; o teste usa-a por omissao. */
+  10:     private static final int DB_PORT = Integer.getInteger("db.port", 54329);
+  11: 
+  12:     @Test
+  13:     void buildsTheJdbcUrl() {
+  14:         assertEquals("jdbc:postgresql://localhost:5432/exports", new Database("localhost", 5432).jdbcUrl());
+  15:     }
+  16: 
+  17:     @Test
+  18:     void databaseAcceptsConnections() {
+  19:         Database database = new Database("localhost", DB_PORT);
+  20:         System.out.println("Connecting to " + database.jdbcUrl() + " user=exports_ci ***");
+  21: 
+  22:         database.checkReachable();
+  23:     }
+  24: }
+
+--- [CITED_SOURCE] src/main/java/com/acme/export/infra/Database.java | class cited in the stack trace (whole file) ---
+   1: package com.acme.export.infra;
+   2: 
+   3: import java.io.IOException;
+   4: import java.net.InetSocketAddress;
+   5: import java.net.Socket;
+   6: 
+   7: public class Database {
+   8: 
+   9:     private final String host;
+  10:     private final int port;
+  11: 
+  12:     public Database(String host, int port) {
+  13:         this.host = host;
+  14:         this.port = port;
+  15:     }
+  16: 
+  17:     public String jdbcUrl() {
+  18:         return "jdbc:postgresql://" + host + ":" + port + "/exports";
+  19:     }
+  20: 
+  21:     /** Abre uma ligacao TCP ao servidor e fecha-a logo. Serve de verificacao de que a base esta de pe. */
+  22:     public void checkReachable() {
+  23:         try (Socket socket = new Socket()) {
+  24:             socket.connect(new InetSocketAddress(host, port), 2000);
+  25:         } catch (IOException e) {
+  26:             throw new IllegalStateException("Cannot reach the database at " + host + ":" + port, e);
+  27:         }
+  28:     }
+  29: }
+
+=== LIMITATIONS (1) ===
+- No spec or ADR is mapped to com.acme.export.infra.DatabaseConnectionTest or to the classes cited in the stack trace; related documentation may exist but was not found.

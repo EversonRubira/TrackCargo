@@ -1,0 +1,41 @@
+=== FAILURE ===
+test: com.acme.export.rates.ExchangeRatesTest#defaultRateForUsd
+errorType: org.opentest4j.AssertionFailedError
+errorMessage: expected: <0.90> but was: <1.10>
+--- stackTrace ---
+org.opentest4j.AssertionFailedError: expected: <0.90> but was: <1.10>
+	at org.junit.jupiter.api.Assertions.notEqual(Assertions.java:11)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:14)
+	at com.acme.export.rates.ExchangeRatesTest.defaultRateForUsd(ExchangeRatesTest.java:20)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+--- logExcerpt ---
+
+=== CONTEXT ARTIFACTS (1) ===
+--- [TEST_SOURCE] src/test/java/com/acme/export/rates/ExchangeRatesTest.java | failed test class (whole file) ---
+   1: package com.acme.export.rates;
+   2: 
+   3: import org.junit.jupiter.api.Test;
+   4: 
+   5: import java.math.BigDecimal;
+   6: 
+   7: import static org.junit.jupiter.api.Assertions.assertEquals;
+   8: 
+   9: class ExchangeRatesTest {
+  10: 
+  11:     @Test
+  12:     void overriddenRateIsUsed() {
+  13:         ExchangeRates.override("USD", new BigDecimal("1.10"));
+  14: 
+  15:         assertEquals(new BigDecimal("1.10"), ExchangeRates.toEur("USD"));
+  16:     }
+  17: 
+  18:     @Test
+  19:     void defaultRateForUsd() {
+  20:         assertEquals(new BigDecimal("0.90"), ExchangeRates.toEur("USD"));
+  21:     }
+  22: }
+
+=== LIMITATIONS (2) ===
+- No execution log output was available for this test.
+- No spec or ADR is mapped to com.acme.export.rates.ExchangeRatesTest or to the classes cited in the stack trace; related documentation may exist but was not found.
