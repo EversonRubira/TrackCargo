@@ -19,3 +19,7 @@ Registo das decisões aprovadas pelo Everson em 06/11/2026 antes do Bloco 1. Nã
 ## Limitações do ambiente de desenvolvimento (06/11/2026)
 - O sandbox bloqueia o Maven Central (403) e não tem daemon Docker. Não houve `mvn test` local. A evidência oficial dos testes é o CI do PR. Localmente só foi compilado o código com `javac` e executado um shim mínimo do JUnit, que não conta como evidência.
 - Os logs do GitHub Actions não são legíveis a partir do sandbox, só o resultado de cada job.
+
+## Progresso
+- Bloco 1 (T01 a T05): implementado em 06/11/2026. Código em `src/main/java/com/eversonrubira/exporttracking/triage/`, testes em `src/test/java/.../triage/` e `.../arquitetura/IsolamentoTriageTest.java`.
+- Pendentes: Bloco 2 (T06 a T09), Bloco 3 (T10 a T12), Bloco 4 (T13 a T15).

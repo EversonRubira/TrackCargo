@@ -5,6 +5,13 @@
 `refactor/fronteiras-modulos`. Ponto de retomada no fim deste arquivo,
 secção "Fronteiras entre módulos (ADR-002)".
 
+## AI Test Triage V1 (em curso, PR #38)
+06/nov/2026 — Bloco 1 (T01 a T05) feito na branch `feat/ai-test-triage`: esqueleto e
+configuração, Failure Collector, retriever determinístico com `doc-map.properties`,
+Context Builder e Secret Filter. Pacote SDD e notas de implementação em
+`docs/ai-test-triage/` (ver `IMPLEMENTATION-NOTES.md`). Ainda sem chamada ao Claude e
+sem alterações ao CI. Próximo: Bloco 2 (T06 a T09), depois de aprovação.
+
 ## Regra de projeto a partir de agora
 **Nenhum texto de interface fixo no código.** Todo texto visível ao
 usuário (backend: PDF de status; frontend: as 4 telas) vem de uma
