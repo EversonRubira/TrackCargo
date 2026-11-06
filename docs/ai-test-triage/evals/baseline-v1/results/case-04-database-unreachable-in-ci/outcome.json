@@ -1,0 +1,1 @@
+{"caseId":"case-04-database-unreachable-in-ci","succeeded":true,"reason":"none","detail":"ok","attempts":1,"latencyMillis":15051,"tokensIn":2646,"tokensOut":1472,"costUsd":0.020012,"retrievalGapCase":false}

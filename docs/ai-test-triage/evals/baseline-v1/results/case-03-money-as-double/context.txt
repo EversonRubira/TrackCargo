@@ -1,0 +1,60 @@
+=== FAILURE ===
+test: com.acme.export.invoice.InvoiceTest#totalOfThreeSmallLinesIsExact
+errorType: org.opentest4j.AssertionFailedError
+errorMessage: expected: <0.3> but was: <0.30000000000000004>
+--- stackTrace ---
+org.opentest4j.AssertionFailedError: expected: <0.3> but was: <0.30000000000000004>
+	at org.junit.jupiter.api.Assertions.notEqual(Assertions.java:11)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:19)
+	at com.acme.export.invoice.InvoiceTest.totalOfThreeSmallLinesIsExact(InvoiceTest.java:22)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+--- logExcerpt ---
+
+=== CONTEXT ARTIFACTS (2) ===
+--- [TEST_SOURCE] src/test/java/com/acme/export/invoice/InvoiceTest.java | failed test class (whole file) ---
+   1: package com.acme.export.invoice;
+   2: 
+   3: import org.junit.jupiter.api.Test;
+   4: 
+   5: import java.util.List;
+   6: 
+   7: import static org.junit.jupiter.api.Assertions.assertEquals;
+   8: 
+   9: class InvoiceTest {
+  10: 
+  11:     @Test
+  12:     void totalOfASingleLineIsThatLine() {
+  13:         Invoice invoice = new Invoice(List.of(125.50));
+  14: 
+  15:         assertEquals(125.50, invoice.total());
+  16:     }
+  17: 
+  18:     @Test
+  19:     void totalOfThreeSmallLinesIsExact() {
+  20:         Invoice invoice = new Invoice(List.of(0.10, 0.10, 0.10));
+  21: 
+  22:         assertEquals(0.30, invoice.total());
+  23:     }
+  24: }
+
+--- [DOCUMENT] docs/adr/ADR-004-money-representation.md | document mapped in the document map ---
+# ADR-004: Representation of monetary amounts
+
+## Status
+
+Accepted.
+
+## Decision
+
+Monetary amounts are never stored or computed as `float` or `double`. Use `BigDecimal` with an
+explicit scale of 2, or integer minor units (cents) in a `long`. Totals are summed in that
+representation and rounded once, with `RoundingMode.HALF_EVEN`.
+
+## Consequences
+
+Binary floating point cannot represent most decimal fractions exactly, so sums such as
+0.10 + 0.10 + 0.10 drift by a tiny amount. In invoices and payment reconciliation that drift
+shows up as a cent of difference between the two parties.
+=== LIMITATIONS (1) ===
+- No execution log output was available for this test.

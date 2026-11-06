@@ -1,0 +1,60 @@
+=== FAILURE ===
+test: com.acme.export.storage.StoragePolicyTest#freeStorageLasts7Days
+errorType: org.opentest4j.AssertionFailedError
+errorMessage: expected: <7> but was: <10>
+--- stackTrace ---
+org.opentest4j.AssertionFailedError: expected: <7> but was: <10>
+	at org.junit.jupiter.api.Assertions.notEqual(Assertions.java:11)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:16)
+	at com.acme.export.storage.StoragePolicyTest.freeStorageLasts7Days(StoragePolicyTest.java:14)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+--- logExcerpt ---
+
+=== CONTEXT ARTIFACTS (3) ===
+--- [TEST_SOURCE] src/test/java/com/acme/export/storage/StoragePolicyTest.java | failed test class (whole file) ---
+   1: package com.acme.export.storage;
+   2: 
+   3: import org.junit.jupiter.api.Test;
+   4: 
+   5: import static org.junit.jupiter.api.Assertions.assertEquals;
+   6: import static org.junit.jupiter.api.Assertions.assertFalse;
+   7: 
+   8: class StoragePolicyTest {
+   9: 
+  10:     private final StoragePolicy policy = new StoragePolicy();
+  11: 
+  12:     @Test
+  13:     void freeStorageLasts7Days() {
+  14:         assertEquals(7, policy.freeDays());
+  15:     }
+  16: 
+  17:     @Test
+  18:     void storageBeyondTheFreePeriodIsCharged() {
+  19:         assertFalse(policy.isFree(11));
+  20:     }
+  21: }
+
+--- [DOCUMENT] docs/SPEC.md | section 'Storage fees' mapped in the document map ---
+## Storage fees
+
+Cargo stays in the destination port free of charge for 7 days after arrival. From the 8th day the
+storage fee is charged per container and per day.
+--- [DOCUMENT] docs/adr/ADR-007-free-storage-days.md | document mapped in the document map ---
+# ADR-007: Free storage period at destination
+
+## Status
+
+Accepted on 2026-03-12. Supersedes the value of 7 days in the "Storage fees" section of docs/SPEC.md,
+which has not been updated yet.
+
+## Decision
+
+The free storage period at the destination port is 10 days, as negotiated with the main
+shipping lines. The fee starts on the 11th day.
+
+## Consequences
+
+Code and tests must use 10 days. The SPEC section is to be corrected in the next documentation pass.
+=== LIMITATIONS (1) ===
+- No execution log output was available for this test.

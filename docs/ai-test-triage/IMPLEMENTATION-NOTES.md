@@ -55,3 +55,14 @@ Registo das decisões aprovadas pelo Everson em 06/11/2026 antes do Bloco 1. Nã
 - Os relatórios congelados vêm de execuções reais do código de cada caso com um executor mínimo (JDK 21 e `opentest4j` real), não de `mvn test`. O que é aproximado está descrito em `evals/DATASET-V1.md`.
 - Critérios de utilidade em duas camadas: piso automático por termos (`UsefulnessCriteria`, nos testes) e `manualChecks` para revisão humana. Os dois casos com teto MEDIUM (06 e 08) são os que não têm evidência para HIGH.
 - Os critérios e os diagnósticos de referência foram escritos pelo mesmo autor; provam que são cumpríveis, não que são imparciais.
+
+## Primeira execução real e T14: baseline (dentro do aprovado)
+- Smoke test do caso 01 (1 chamada, US$0.0199, 11.2 s, scan limpo): aprovado e não conta para o baseline.
+- Baseline T14: 10 casos, 10 chamadas, 0 retries, US$0.1782, latência média 10.7 s. Automático estrito 7/10 (meta 8/10 não atingida); revisão humana 10/10. Os 3 `AUTO_FAIL` (01, 09, 10) ficam no histórico como `CRITERION LIMITATION` (formato de `relatedDocuments`). Detalhe, limitações e o grupo de lacuna de retrieval em `evals/baseline-v1/BASELINE-REPORT.md`.
+- Não se descreve como 100% de accuracy: 10 casos, uma execução por caso, variância não medida, critérios automáticos imperfeitos.
+- Nada foi alterado em dataset, retrieval, prompt, scorer, critérios, spec, architecture nem ADRs.
+
+## T15: verification pack
+- `VERIFICATION-PACK.md` mapeia CA-01 a CA-08 e os itens do handoff para testes, evals e CI, com desvios e riscos por resolver.
+- Resultados brutos do baseline em `evals/baseline-v1/results/` (51 ficheiros), com scan de segredos repetido antes de entrarem no repositório.
+- RAG, clustering e remediação automática ficam registados só como evoluções condicionadas a evidência futura.

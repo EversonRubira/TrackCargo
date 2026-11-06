@@ -1,0 +1,34 @@
+=== FAILURE ===
+test: com.acme.export.routing.PortRouterTest#routesGermanCargoThroughRotterdam
+errorType: org.opentest4j.AssertionFailedError
+errorMessage: expected: <ROTTERDAM> but was: <HAMBURG>
+--- stackTrace ---
+org.opentest4j.AssertionFailedError: expected: <ROTTERDAM> but was: <HAMBURG>
+	at org.junit.jupiter.api.Assertions.notEqual(Assertions.java:11)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:14)
+	at com.acme.export.routing.PortRouterTest.routesGermanCargoThroughRotterdam(PortRouterTest.java:13)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+--- logExcerpt ---
+
+=== CONTEXT ARTIFACTS (1) ===
+--- [TEST_SOURCE] src/test/java/com/acme/export/routing/PortRouterTest.java | failed test class (whole file) ---
+   1: package com.acme.export.routing;
+   2: 
+   3: import org.junit.jupiter.api.Test;
+   4: 
+   5: import static org.junit.jupiter.api.Assertions.assertEquals;
+   6: 
+   7: class PortRouterTest {
+   8: 
+   9:     private final PortRouter router = new PortRouter();
+  10: 
+  11:     @Test
+  12:     void routesGermanCargoThroughRotterdam() {
+  13:         assertEquals("ROTTERDAM", router.portFor("DE"));
+  14:     }
+  15: }
+
+=== LIMITATIONS (2) ===
+- No execution log output was available for this test.
+- No spec or ADR is mapped to com.acme.export.routing.PortRouterTest or to the classes cited in the stack trace; related documentation may exist but was not found.
