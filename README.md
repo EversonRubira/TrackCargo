@@ -41,6 +41,12 @@ A recusa de um documento do checklist **nunca** altera o estado do pedido — o 
 - Validação de campos: moeda (enum USD/EUR/BRL), quantidade e preço positivos, percentual parcial (0-100), número de container com dígito verificador ISO 6346
 - **Multilinguagem completa (pt-BR / en / es)**: interface, mensagens de erro traduzidas por código, PDF de status no idioma escolhido, datas/números/moeda formatados por locale
 
+## AI Test Triage (V1)
+
+Quando um teste Java falha no CI, o módulo de triagem recolhe a falha, monta o contexto, filtra segredos, pede ao Claude um diagnóstico estruturado e imprime o bloco `AI TEST TRIAGE` no log. É só leitura: o resultado do teste original continua a decidir o build e nada no projeto é modificado. Precisa do secret `ANTHROPIC_API_KEY`; sem ele o CI mostra `TRIAGE FAILED` e segue.
+
+Baseline real sobre 10 casos: 7/10 pelo critério automático (alvo 8/10, não atingido) e 10/10 na revisão humana, com uma execução por caso. Detalhes e limitações em [`docs/ai-test-triage/`](docs/ai-test-triage/README.md).
+
 ## Como rodar localmente
 
 ### Pré-requisitos
@@ -96,6 +102,7 @@ Corre contra `export_tracking_test` (ver "Banco de dados"), nunca contra a base 
 - [`docs/SPEC.md`](docs/SPEC.md) — spec técnica (schema, endpoints, tabela critério↔teste)
 - [`docs/PLAN.md`](docs/PLAN.md) — plano de implementação por fases
 - [`docs/STATUS.md`](docs/STATUS.md) — estado atual e ponto de retomada
+- [`docs/ai-test-triage/`](docs/ai-test-triage/README.md) — AI Test Triage V1: spec, arquitetura, ADRs, verificação e baseline
 
 ## Metodologia
 
