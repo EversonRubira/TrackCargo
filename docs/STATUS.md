@@ -10,7 +10,11 @@ secção "Fronteiras entre módulos (ADR-002)".
 configuração, Failure Collector, retriever determinístico com `doc-map.properties`,
 Context Builder e Secret Filter. Pacote SDD e notas de implementação em
 `docs/ai-test-triage/` (ver `IMPLEMENTATION-NOTES.md`). Ainda sem chamada ao Claude e
-sem alterações ao CI. Próximo: Bloco 2 (T06 a T09), depois de aprovação.
+sem alterações ao CI.
+06/nov/2026 — Bloco 2 (T06 a T09) feito: prompt com fronteira de confiança, cliente do
+Claude com a política do ADR-003, validação do contrato da resposta e renderer
+`AI TEST TRIAGE`. Ainda sem chamada ao Claude real e sem alterações ao CI.
+Próximo: Bloco 3 (T10 a T12), depois de aprovação.
 
 ## Regra de projeto a partir de agora
 **Nenhum texto de interface fixo no código.** Todo texto visível ao
