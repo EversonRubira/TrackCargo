@@ -1,8 +1,8 @@
 # TrackCargo
 
-Rastreamento de pedidos de exportação de commodity (proteína animal), do lado do fornecedor — com cobertura real de testes (unitário/API/E2E) e um módulo de triagem por IA.
+Rastreamento de pedidos de exportação de commodity (proteína animal), do lado do fornecedor — com cobertura real de testes (unitário, API e E2E).
 
-Projeto-bandeira de portfólio para transição a QA Automation + AI Engineering, construído com Spec-Driven Development (SDD).
+Projeto de portfólio de backend (Java e Spring Boot), construído com Spec-Driven Development (SDD) a partir de um processo que conheço do trabalho em comércio internacional.
 
 ## Sobre o projeto
 
@@ -26,9 +26,7 @@ A recusa de um documento do checklist **nunca** altera o estado do pedido — o 
 
 **Frontend:** React + Vite + TypeScript, Tailwind CSS v4, i18next/react-i18next.
 
-**Testes:** JUnit 5 (unitário), REST Assured/Postman (API), GitHub Actions (CI).
-
-**IA de triagem:** Claude API.
+**Testes:** JUnit 5 e AssertJ (unitário e de serviço), REST Assured contra a API real com PostgreSQL (API e E2E), ArchUnit (fronteiras entre módulos), Vitest (frontend), GitHub Actions (CI).
 
 ## Funcionalidades implementadas
 
@@ -89,6 +87,12 @@ Sobe em `http://localhost:5173`.
 mvn test
 ```
 Corre contra `export_tracking_test` (ver "Banco de dados"), nunca contra a base de desenvolvimento.
+
+Os testes E2E sobem o contexto Spring completo numa porta aleatória e chamam a API por HTTP real, contra o PostgreSQL, sem mocks. Ainda não há E2E pela interface (por exemplo com Playwright): o frontend é coberto por testes de unidade com Vitest (`npm run test`, dentro de `frontend/`).
+
+## Próximos passos
+
+- Módulo de triagem de resultados de teste com IA (Claude API): planeado, ainda não implementado.
 
 ## Documentação
 
