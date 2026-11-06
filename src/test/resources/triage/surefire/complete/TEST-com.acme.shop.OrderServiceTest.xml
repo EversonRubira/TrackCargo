@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.acme.shop.OrderServiceTest" tests="4" errors="1" skipped="1" failures="1">
+  <testcase name="shipsPaidOrder" classname="com.acme.shop.OrderServiceTest" time="0.01"/>
+  <testcase name="shipRejectsUnpaid" classname="com.acme.shop.OrderServiceTest" time="0.02">
+    <failure message="Cannot ship order in status CREATED, expected OrderStatus PAID" type="com.acme.shop.InvalidTransitionException">com.acme.shop.InvalidTransitionException: Cannot ship order in status CREATED, expected OrderStatus PAID
+	at com.acme.shop.OrderService.ship(OrderService.java:14)
+	at com.acme.shop.OrderServiceTest.shipRejectsUnpaid(OrderServiceTest.java:22)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+</failure>
+    <system-out><![CDATA[10:00:01 INFO  OrderService - shipping order 42
+10:00:01 ERROR OrderService - transition refused
+]]></system-out>
+  </testcase>
+  <testcase name="nullCustomer" classname="com.acme.shop.OrderServiceTest" time="0.00">
+    <error message="Cannot invoke &quot;String.length()&quot; because &quot;name&quot; is null" type="java.lang.NullPointerException">java.lang.NullPointerException: Cannot invoke "String.length()" because "name" is null
+	at com.acme.shop.OrderService.validate(OrderService.java:18)
+	at com.acme.shop.OrderServiceTest.nullCustomer(OrderServiceTest.java:30)
+</error>
+  </testcase>
+  <testcase name="notReady" classname="com.acme.shop.OrderServiceTest" time="0.00"><skipped/></testcase>
+</testsuite>

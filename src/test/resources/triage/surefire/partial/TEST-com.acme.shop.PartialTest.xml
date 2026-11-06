@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.acme.shop.PartialTest" tests="2" errors="0" skipped="0" failures="2">
+  <testcase name="noStack" classname="com.acme.shop.PartialTest" time="0.01">
+    <failure message="boom" type="java.lang.IllegalStateException"/>
+  </testcase>
+  <testcase name="noMessage" classname="com.acme.shop.PartialTest" time="0.01">
+    <failure type="java.lang.IllegalStateException">java.lang.IllegalStateException: derived message
+	at com.acme.shop.OrderService.ship(OrderService.java:20)
+</failure>
+  </testcase>
+  <system-out><![CDATA[suite level line A
+suite level line B
+]]></system-out>
+</testsuite>

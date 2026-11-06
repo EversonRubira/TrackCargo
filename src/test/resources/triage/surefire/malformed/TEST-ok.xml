@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.acme.shop.OkTest"><testcase name="fails" classname="com.acme.shop.OkTest"><failure message="m" type="t">t: m</failure></testcase></testsuite>
