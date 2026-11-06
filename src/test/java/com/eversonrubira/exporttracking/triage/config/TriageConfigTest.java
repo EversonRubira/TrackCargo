@@ -24,6 +24,8 @@ class TriageConfigTest {
         assertEquals(30, c.timeoutSeconds());   // ADR-003
         assertEquals(2, c.maxAttempts());       // ADR-003
         assertEquals(5, c.maxFailures());       // ADR-004
+        assertEquals("https://api.anthropic.com", c.baseUrl().toString());
+        assertEquals("ANTHROPIC_API_KEY", c.apiKeyEnv());
         assertEquals(Path.of("target/surefire-reports"), c.reportsDir());
         assertEquals(List.of(Path.of("src/test/java"), Path.of("src/main/java")), c.sourceRoots());
         assertEquals(List.of("com.eversonrubira.exporttracking"), c.projectPackages());
@@ -69,6 +71,22 @@ class TriageConfigTest {
         assertRejected("triage.provider.timeout-seconds", "0");
         assertRejected("triage.provider.timeout-seconds", "fast");
         assertRejected("triage.enabled", "maybe");
+    }
+
+    // T07: a chave de API viaja neste endereco, por isso nunca em texto simples para fora.
+    @Test
+    void baseUrlMustBeHttpsOrLocalhost() {
+        assertRejected("triage.provider.base-url", "http://api.anthropic.com");
+        assertRejected("triage.provider.base-url", "http://evil.example.com:8080");
+        assertRejected("triage.provider.base-url", "ftp://localhost");
+        assertRejected("triage.provider.base-url", "not a url");
+        Properties p = new Properties();
+        p.setProperty("triage.provider.base-url", "http://localhost:8089");
+        assertEquals("http://localhost:8089", TriageConfig.fromProperties(p).baseUrl().toString());
+        p.setProperty("triage.provider.base-url", "http://127.0.0.1:8089");
+        assertEquals("http://127.0.0.1:8089", TriageConfig.fromProperties(p).baseUrl().toString());
+        p.setProperty("triage.provider.base-url", "https://proxy.example.com");
+        assertEquals("https://proxy.example.com", TriageConfig.fromProperties(p).baseUrl().toString());
     }
 
     @Test

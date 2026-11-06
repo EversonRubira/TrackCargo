@@ -2,6 +2,7 @@ package com.eversonrubira.exporttracking.triage.config;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,6 +23,10 @@ public record TriageConfig(
         String model,
         int timeoutSeconds,
         int maxAttempts,
+        URI baseUrl,
+        int maxOutputTokens,
+        int retryDelayMillis,
+        String apiKeyEnv,
         int maxFailures,
         Path projectRoot,
         Path reportsDir,
@@ -84,6 +89,10 @@ public record TriageConfig(
                 nonBlank(p, "triage.provider.model", "claude-sonnet-5-5"),
                 number(p, "triage.provider.timeout-seconds", 30, 1, 600),
                 number(p, "triage.provider.max-attempts", HARD_MAX_ATTEMPTS, 1, HARD_MAX_ATTEMPTS),
+                baseUrl(p),
+                number(p, "triage.provider.max-output-tokens", 2000, 256, 8000),
+                number(p, "triage.provider.retry-delay-millis", 1000, 0, 60_000),
+                nonBlank(p, "triage.provider.api-key-env", "ANTHROPIC_API_KEY"),
                 number(p, "triage.max-failures", HARD_MAX_FAILURES, 1, HARD_MAX_FAILURES),
                 root,
                 root.resolve(text(p, "triage.reports-dir", "target/surefire-reports")).normalize(),
@@ -97,6 +106,28 @@ public record TriageConfig(
                 number(p, "triage.context.max-source-files", 6, 1, 50),
                 number(p, "triage.context.max-documents", 3, 0, 20),
                 number(p, "triage.context.max-total-chars", 40_000, 1000, 400_000));
+    }
+
+    /**
+     * A chave de API viaja neste endereco, por isso so se aceita https, ou http para
+     * a propria maquina (servidor local dos testes). Nunca http para fora.
+     */
+    private static URI baseUrl(Properties p) {
+        String value = text(p, "triage.provider.base-url", "https://api.anthropic.com");
+        URI uri;
+        try {
+            uri = URI.create(value);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("triage.provider.base-url is not a valid URL: '" + value + "'");
+        }
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+        String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase();
+        boolean loopback = host.equals("localhost") || host.equals("127.0.0.1") || host.equals("[::1]");
+        if (!(scheme.equals("https") || (scheme.equals("http") && loopback))) {
+            throw new IllegalArgumentException(
+                    "triage.provider.base-url must use https (http is only accepted for localhost), was '" + value + "'");
+        }
+        return uri;
     }
 
     private static String text(Properties p, String key, String fallback) {
