@@ -14,7 +14,11 @@ sem alterações ao CI.
 06/nov/2026 — Bloco 2 (T06 a T09) feito: prompt com fronteira de confiança, cliente do
 Claude com a política do ADR-003, validação do contrato da resposta e renderer
 `AI TEST TRIAGE`. Ainda sem chamada ao Claude real e sem alterações ao CI.
-Próximo: Bloco 3 (T10 a T12), depois de aprovação.
+06/nov/2026 — Bloco 3 (T10 a T12) feito: pipeline completo, passos condicionais no CI,
+limite de 5 falhas e métricas no log. Validado numa execução controlada no CI (7 falhas
+deliberadas, sem chave: `TRIAGE FAILED` com `MISSING_API_KEY`, 5 analisadas, 2 saltadas,
+job falhado pelos testes). Ainda sem `ANTHROPIC_API_KEY` e sem chamadas reais ao Claude.
+Próximo: Bloco 4 (T13 a T15) e a primeira execução real, depois de aprovação.
 
 ## Regra de projeto a partir de agora
 **Nenhum texto de interface fixo no código.** Todo texto visível ao
